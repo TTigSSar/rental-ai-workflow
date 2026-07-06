@@ -1,0 +1,11 @@
+# Umbrella repo: tracks ONLY the cross-cutting AI-workflow files.
+# The two project repos are independent (their own git remotes) — ignore them here.
+/rental-api/
+/Rental-Ui/
+
+# Claude Code local (machine-specific permissions)
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
