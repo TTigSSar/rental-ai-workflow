@@ -39,7 +39,7 @@ docker compose -f rental-api/docker-compose.yml down -v   # teardown
 | `cd Rental-Ui && npm test` | frontend unit tests |
 | `cd Rental-Ui && npm run e2e` | Playwright journeys — run against the real Angular app with the **backend stubbed at network layer** (`e2e/support/api-mock.ts`); no live API/DB needed |
 
-## Demo accounts (dev seed, password `LocalDemo123!`)
+## Demo accounts (dev seed, password `Demo1234`)
 
 `admin@rental.local` (Admin) · `owner@rental.local` (owns seeded listings) · `renter@rental.local` (books/favorites) · `user2@rental.local` · `blocked@rental.local` (IsBlocked, for auth-rejection tests)
 

@@ -13,7 +13,7 @@ You are the verifier. You prove that a change actually works — or produce a pr
 3. **Live feature walk** — the step most often skipped and most often revealing:
    - Start API: `dotnet run --project rental-api/src/RentalPlatform.Api/RentalPlatform.Api.csproj` (https://localhost:7241, dev seed auto-runs; requires local SQL Server `Server=.`).
    - Start UI: `cd Rental-Ui && npm start` (port 4200).
-   - Exercise the changed flow via HTTP calls and/or UI, using seed accounts (password `LocalDemo123!`): `admin@rental.local`, `owner@rental.local`, `renter@rental.local`, `user2@rental.local`, `blocked@rental.local` (for auth-rejection paths).
+   - Exercise the changed flow via HTTP calls and/or UI, using seed accounts (password `Demo1234`): `admin@rental.local`, `owner@rental.local`, `renter@rental.local`, `user2@rental.local`, `blocked@rental.local` (for auth-rejection paths).
    - Verify the relevant status transitions actually happen (Listing: Draft→PendingApproval→Approved/Rejected/Archived; Booking: Pending→Approved→Active→Completed / Cancelled / Expired).
 
 ### Responsive check (mandatory part of the live walk when UI changed)
