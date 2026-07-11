@@ -5,11 +5,6 @@
     "desc": "The last remaining 1:1 gap vs the ToyRent chat design: the thread header shows the counterpart's name but no \"Active now\" presence line.\n\nScope: a real presence service (SignalR connection tracking, last-seen), presence exposed on ChatConversationDetailsResponse, rendered in the thread header.\n\nDo NOT fake it with a static label — the design implies live presence.\n\nUnblocked: M-008 (docker nginx hub proxy) is FIXED as of 2026-07-11, so SignalR now works in the docker stack too.\n\nSource: orchestrator gap analysis, 2026-07-11."
   },
   {
-    "name": "Chat: image attachments — sending vertical",
-    "labels": ["chat", "backend", "frontend"],
-    "desc": "The composer's image + camera icons are currently VISUAL PLACEHOLDERS only — they send nothing.\n\nCode markers:\n- Rental-Ui/src/app/features/chat/pages/conversation-details-page/conversation-details-page.component.html:231\n- ...conversation-details-page.component.scss:548\n(\"attachment SENDING is a separate backend vertical (deferred)\")\n\nScope: upload/storage endpoint, image message type on the ChatMessage DTO, image-bubble rendering, frontend send path, contract sync.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Deferred."
-  },
-  {
     "name": "Chat: push notifications for new messages",
     "labels": ["chat", "backend", "frontend"],
     "desc": "No push/notification when a new chat message arrives while the app is closed or the user is not on the chat tab.\n\nRealtime (SignalR) delivers in-app only. Consider reusing the existing Notification vertical (INotificationEmitter) and/or web push.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Deferred."

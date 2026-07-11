@@ -9,9 +9,12 @@
  * in the target list, so re-running never duplicates.
  *
  * Usage:
- *   node sync.js --boards     list your boards and their lists (to find TRELLO_LIST_ID)
- *   node sync.js --dry-run    show what would be created, touch nothing
- *   node sync.js              create the missing cards
+ *   node sync.js --boards            list your boards and their lists (to find TRELLO_LIST_ID)
+ *   node sync.js --dry-run           show what would be created, touch nothing
+ *   node sync.js                     create the missing cards
+ *   node sync.js --move "<name>" --to "<list>"
+ *                                    move one card to another list on the same board
+ *                                    (<name> may be a unique substring of the card title)
  *
  * Credentials come from tools/trello-sync/.env (gitignored) or the environment:
  *   TRELLO_KEY, TRELLO_TOKEN, TRELLO_LIST_ID
@@ -199,11 +202,52 @@ async function sync({ dryRun }) {
   }
 }
 
+/**
+ * Move a card between lists on the same board — the workflow half of the tool:
+ * a card that is being worked on should not still read "To Do".
+ */
+async function move(needle, targetList) {
+  const listId = process.env.TRELLO_LIST_ID;
+  if (!listId) die('Missing TRELLO_LIST_ID (used to locate the board).');
+  const home = await trello('GET', `/lists/${listId}`, { fields: 'idBoard' });
+
+  const lists = await trello('GET', `/boards/${home.idBoard}/lists`, { fields: 'name' });
+  const target = lists.find((l) => l.name.toLowerCase() === targetList.toLowerCase());
+  if (!target) die(`No list named "${targetList}" on this board. Have: ${lists.map((l) => l.name).join(', ')}`);
+
+  const cards = await trello('GET', `/boards/${home.idBoard}/cards`, { fields: 'name,idList' });
+  const hits = cards.filter((c) => c.name.toLowerCase().includes(needle.toLowerCase()));
+  if (!hits.length) die(`No card matching "${needle}".`);
+  if (hits.length > 1) {
+    die(`"${needle}" matches ${hits.length} cards — be more specific:\n  ` + hits.map((c) => c.name).join('\n  '));
+  }
+
+  const card = hits[0];
+  if (card.idList === target.id) {
+    console.log(`\n"${card.name}" is already in "${target.name}".\n`);
+    return;
+  }
+  const from = lists.find((l) => l.id === card.idList);
+  await trello('PUT', `/cards/${card.id}`, { idList: target.id });
+  console.log(`\n→ "${card.name}"\n  ${from ? from.name : '?'} → ${target.name}\n`);
+}
+
 // ── main ─────────────────────────────────────────────────────────────────────
 (async () => {
   loadEnv();
   creds(); // fail on missing key/token before anything else, with the how-to-get-them hint
   const args = process.argv.slice(2);
+
   if (args.includes('--boards')) return printBoards();
+
+  const m = args.indexOf('--move');
+  if (m !== -1) {
+    const t = args.indexOf('--to');
+    if (!args[m + 1] || t === -1 || !args[t + 1]) {
+      die('Usage: node sync.js --move "<card name>" --to "<list name>"');
+    }
+    return move(args[m + 1], args[t + 1]);
+  }
+
   return sync({ dryRun: args.includes('--dry-run') });
 })().catch((err) => die(err && err.stack ? err.stack : String(err)));
