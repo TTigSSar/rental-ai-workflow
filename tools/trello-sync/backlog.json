@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Chat: presence — \"Active now\" in thread header",
+    "labels": ["chat", "backend", "frontend"],
+    "desc": "The last remaining 1:1 gap vs the ToyRent chat design: the thread header shows the counterpart's name but no \"Active now\" presence line.\n\nScope: a real presence service (SignalR connection tracking, last-seen), presence exposed on ChatConversationDetailsResponse, rendered in the thread header.\n\nDo NOT fake it with a static label — the design implies live presence.\n\nUnblocked: M-008 (docker nginx hub proxy) is FIXED as of 2026-07-11, so SignalR now works in the docker stack too.\n\nSource: orchestrator gap analysis, 2026-07-11."
+  },
+  {
+    "name": "Chat: image attachments — sending vertical",
+    "labels": ["chat", "backend", "frontend"],
+    "desc": "The composer's image + camera icons are currently VISUAL PLACEHOLDERS only — they send nothing.\n\nCode markers:\n- Rental-Ui/src/app/features/chat/pages/conversation-details-page/conversation-details-page.component.html:231\n- ...conversation-details-page.component.scss:548\n(\"attachment SENDING is a separate backend vertical (deferred)\")\n\nScope: upload/storage endpoint, image message type on the ChatMessage DTO, image-bubble rendering, frontend send path, contract sync.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Deferred."
+  },
+  {
+    "name": "Chat: push notifications for new messages",
+    "labels": ["chat", "backend", "frontend"],
+    "desc": "No push/notification when a new chat message arrives while the app is closed or the user is not on the chat tab.\n\nRealtime (SignalR) delivers in-app only. Consider reusing the existing Notification vertical (INotificationEmitter) and/or web push.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Deferred."
+  },
+  {
+    "name": "Chat: app-wide entry points — audit + complete",
+    "labels": ["chat", "frontend"],
+    "desc": "Phase 1 deferred \"app-wide entry points (navbar message icon, home widget, mobile nav tab)\". A chat link now exists in shared/ui/app-header, but coverage was never audited.\n\nScope: confirm which entry points exist vs the design (header icon w/ unread badge, home widget, mobile bottom-nav tab) and finish the missing ones.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Deferred."
+  },
+  {
+    "name": "Chat: open conversation with renter from owner-listing page",
+    "labels": ["chat", "frontend"],
+    "desc": "Code TODO left from before chat had a backend — the button is dead.\n\nRental-Ui/src/app/features/my-listings/pages/owner-listing-page/owner-listing-page.component.ts:248\n// TODO(real API): open the conversation with this renter once chat threads ...\n\nChat threads now exist (booking-scoped, with getOrCreateFromBooking) — this is unblocked and should be wired to the real endpoint."
+  },
+  {
+    "name": "Chat: mobile 375px — long toy title truncates mid-word",
+    "labels": ["chat", "frontend", "cosmetic"],
+    "desc": "Cosmetic: on 375px the toy title in the thread's booking-context header truncates mid-word with an ellipsis.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Known follow-ups (from verifier, non-blocking)."
+  },
+  {
+    "name": "M-005: harden EF MigrateAsync against SQL-startup race (docker)",
+    "labels": ["infra", "backend"],
+    "desc": "OPEN follow-up. The docker API crashes (exit 139) on restart: the db healthcheck (SELECT 1 on master) passes before the user DB is online, so EF Core Database.MigrateAsync() sees \"does not exist\", issues CREATE DATABASE, and hits SqlException 1801 (already exists) — unhandled, process dies.\n\nCurrent workaround is operational: docker compose -f rental-api/docker-compose.yml up -d api (succeeds on retry).\n\nProper fix: retry loop / EnableRetryOnFailure in MigrationExtensions.ApplyMigrationsAsync so transient SQL-startup errors are retried instead of crashing.\n\nSource: knowledge/mistakes.md — M-005 (still OPEN)."
+  },
+  {
+    "name": "Content-Security-Policy header — deferred to a later sprint",
+    "labels": ["infra", "security", "backend"],
+    "desc": "rental-api/src/RentalPlatform.Api/Middleware/SecurityHeadersMiddleware.cs:4\n\"// it requires per-route asset allowlists and is deferred to a later sprint.\"\n\nCSP is not emitted. Scope: define per-route asset allowlists and enable the header."
+  },
+  {
+    "name": "Booking: wire noteForOwner to the API (backend field missing)",
+    "labels": ["backend", "frontend", "contract"],
+    "desc": "Rental-Ui/src/app/features/listings/pages/listing-booking-page/listing-booking-page.component.ts:289\n// TODO: wire noteForOwner to API when backend supports notes\n\nThe renter can type a note to the owner at booking time, but it is silently dropped — the backend has no field for it.\n\nScope: add the field to the booking create DTO + entity + migration, sync the contract, send it from the UI."
+  },
+  {
+    "name": "rental-api/README.md is outdated — rewrite or delete stale sections",
+    "labels": ["docs"],
+    "desc": "M-001. The README describes an early toys-MVP: no reviews, no notifications, no booking activate/complete/cancel, no listing Draft/Archived statuses, wrong Angular version. CLAUDE.md already warns agents not to trust it.\n\nSource of truth is controllers + api-contract.ts + domain enums. Bring the README in line or delete the stale sections.\n\nSource: knowledge/mistakes.md — M-001."
+  }
+]

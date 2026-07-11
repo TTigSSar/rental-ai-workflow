@@ -6,6 +6,10 @@
 # Claude Code local (machine-specific permissions)
 .claude/settings.local.json
 
+# Secrets — Trello API key/token and any other local env
+.env
+**/.env
+
 # OS / editor
 .DS_Store
 Thumbs.db
