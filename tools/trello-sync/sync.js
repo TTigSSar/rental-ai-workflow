@@ -203,6 +203,37 @@ async function sync({ dryRun }) {
 }
 
 /**
+ * Overwrite one card's body from backlog.json.
+ *
+ * Deliberately NOT part of the normal sync: that runs on every invocation and
+ * would silently clobber notes a human added on the board. Rewriting a card's
+ * body is destructive, so it stays an explicit, one-card-at-a-time command.
+ */
+async function refresh(needle) {
+  const listId = process.env.TRELLO_LIST_ID;
+  if (!listId) die('Missing TRELLO_LIST_ID.');
+  const items = readBacklog();
+
+  const matches = items.filter((it) => it.name.toLowerCase().includes(needle.toLowerCase()));
+  if (!matches.length) die(`No backlog.json item matching "${needle}".`);
+  if (matches.length > 1) die(`"${needle}" matches ${matches.length} items:\n  ` + matches.map((i) => i.name).join('\n  '));
+  const item = matches[0];
+
+  const home = await trello('GET', `/lists/${listId}`, { fields: 'idBoard' });
+  const cards = await trello('GET', `/boards/${home.idBoard}/cards`, { fields: 'name,desc' });
+  const card = cards.find((c) => c.name.trim() === item.name.trim());
+  if (!card) die(`Backlog item "${item.name}" has no card on the board yet — run a plain sync first.`);
+
+  const body = bodyOf(item);
+  if (card.desc === body) {
+    console.log(`\n"${card.name}" is already up to date.\n`);
+    return;
+  }
+  await trello('PUT', `/cards/${card.id}`, { desc: body });
+  console.log(`\n↻ body rewritten: "${card.name}"\n`);
+}
+
+/**
  * Move a card between lists on the same board — the workflow half of the tool:
  * a card that is being worked on should not still read "To Do".
  */
@@ -239,6 +270,12 @@ async function move(needle, targetList) {
   const args = process.argv.slice(2);
 
   if (args.includes('--boards')) return printBoards();
+
+  const r = args.indexOf('--refresh');
+  if (r !== -1) {
+    if (!args[r + 1]) die('Usage: node sync.js --refresh "<card name>"');
+    return refresh(args[r + 1]);
+  }
 
   const m = args.indexOf('--move');
   if (m !== -1) {
