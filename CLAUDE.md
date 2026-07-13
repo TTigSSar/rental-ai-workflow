@@ -51,11 +51,12 @@ docker compose -f rental-api/docker-compose.yml down -v   # teardown
 ## Engineering workflow (mandatory)
 
 1. **Plan first**: non-trivial work starts in plan mode; the human approves the plan before any code.
-2. **Specialist subagents** (`.claude/agents/`): `backend-dev`, `frontend-dev`, `contract-guardian`, `verifier`. Give each a self-contained spec (files, constraints, definition of done).
+2. **Specialist subagents** (`.claude/agents/`): `backend-dev`, `frontend-dev`, `contract-guardian`, `verifier`, `platform-engineer`. Give each a self-contained spec (files, constraints, definition of done). `platform-engineer` is the single owner of the production server, deploys, backups, and infra scripts — backend/frontend agents never touch the server, and it never edits business logic.
 3. **Any API/DTO change** → `contract-guardian` must sync `Rental-Ui/src/app/api/api-contract.ts` and feature models.
 4. **Verification is two-tier**: fast (build + affected tests + live feature walk) after each change; full (all tests + e2e + `/security-review`, a11y if UI changed) before merge.
 5. `/code-review` on the branch diff before merge; human approves the merge. DB migrations always get human review of the generated migration.
-6. **Close-feature step**: update `knowledge/decisions.md` (ADR-XXX) and `knowledge/mistakes.md` (M-XXX) when applicable; write `knowledge/feature-notes/<date>-<slug>.md` only for non-trivial features.
+6. **Release & production deploy**: implementation (backend/frontend) → contract-guardian → verifier → reviewer (+ `/security-review` before production when warranted) → `platform-engineer` prepares the release (branch state, changelog, readiness, deployment plan) → **the human reviews and merges to `main`** → platform-engineer deploys → runs `deploy/smoke.sh` → on failure executes or proposes rollback → updates infrastructure docs. Agents commit to `dev`; merge/push to `main` is human-only. A deploy is done only after the live smoke check passes. Never `docker compose down -v` in production.
+7. **Close-feature step**: update `knowledge/decisions.md` (ADR-XXX) and `knowledge/mistakes.md` (M-XXX) when applicable; write `knowledge/feature-notes/<date>-<slug>.md` only for non-trivial features.
 
 ## Knowledge base (`knowledge/`)
 
