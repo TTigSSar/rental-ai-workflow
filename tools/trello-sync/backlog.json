@@ -1,53 +1,140 @@
 [
   {
     "name": "Chat: presence — \"Active now\" in thread header",
-    "labels": ["chat", "backend", "frontend"],
+    "labels": [
+      "chat",
+      "backend",
+      "frontend"
+    ],
     "desc": "The last remaining 1:1 gap vs the ToyRent chat design: the thread header shows the counterpart's name but no \"Active now\" presence line.\n\nScope: a real presence service (SignalR connection tracking, last-seen), presence exposed on ChatConversationDetailsResponse, rendered in the thread header.\n\nDo NOT fake it with a static label — the design implies live presence.\n\nUnblocked: M-008 (docker nginx hub proxy) is FIXED as of 2026-07-11, so SignalR now works in the docker stack too.\n\nSource: orchestrator gap analysis, 2026-07-11."
   },
   {
     "name": "Chat: push notifications for new messages",
-    "labels": ["chat", "backend", "frontend"],
+    "labels": [
+      "chat",
+      "backend",
+      "frontend"
+    ],
     "desc": "No push/notification when a new chat message arrives while the app is closed or the user is not on the chat tab.\n\nRealtime (SignalR) delivers in-app only. Consider reusing the existing Notification vertical (INotificationEmitter) and/or web push.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Deferred."
   },
   {
     "name": "Chat: app-wide entry points — audit + complete",
-    "labels": ["chat", "frontend"],
+    "labels": [
+      "chat",
+      "frontend"
+    ],
     "desc": "Phase 1 deferred \"app-wide entry points (navbar message icon, home widget, mobile nav tab)\". A chat link now exists in shared/ui/app-header, but coverage was never audited.\n\nScope: confirm which entry points exist vs the design (header icon w/ unread badge, home widget, mobile bottom-nav tab) and finish the missing ones.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Deferred."
   },
   {
     "name": "Chat: open conversation with renter from owner-listing page",
-    "labels": ["chat", "frontend"],
+    "labels": [
+      "chat",
+      "frontend"
+    ],
     "desc": "Code TODO left from before chat had a backend — the button is dead.\n\nRental-Ui/src/app/features/my-listings/pages/owner-listing-page/owner-listing-page.component.ts:248\n// TODO(real API): open the conversation with this renter once chat threads ...\n\nChat threads now exist (booking-scoped, with getOrCreateFromBooking) — this is unblocked and should be wired to the real endpoint."
   },
   {
     "name": "Chat: mobile 375px — long toy title truncates mid-word",
-    "labels": ["chat", "frontend", "cosmetic"],
+    "labels": [
+      "chat",
+      "frontend",
+      "cosmetic"
+    ],
     "desc": "Cosmetic: on 375px the toy title in the thread's booking-context header truncates mid-word with an ellipsis.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Known follow-ups (from verifier, non-blocking)."
   },
   {
     "name": "Centralized API error handling & localization",
-    "labels": ["frontend", "security", "contract"],
+    "labels": [
+      "frontend",
+      "security",
+      "contract"
+    ],
     "desc": "Today every feature's NgRx effects pass HTTP errors straight to `toApiErrorMessage` (Rental-Ui/src/app/api/http-error-message.util.ts), which renders the server's `detail`/`title` VERBATIM. Two concrete consequences, both observed live by the verifier during the chat image-attachments work (2026-07-11):\n\n1. On a 500, a full C# stack trace — including local filesystem paths — was rendered in the user-facing error banner.\n2. Server-side rejections show hardcoded English. A text file renamed .jpg passes the browser's extension-derived File.type check, so the SERVER's magic-byte rejection is the one the user actually sees — and a Russian/Armenian user got English.\n\nThe chat feature now maps ServiceError codes to i18n keys, but ONLY locally in `features/chat/store/chat.effects.ts`. There is NO app-wide precedent: no other feature reads the server's error code at all. That local map is the seed for this task, not the solution.\n\nGoal: one ErrorMapper for the whole app.\n- map `error.code` → i18n key\n- sanitize `detail` before it ever reaches the user\n- never display internal exceptions or stack traces\n- one consistent error banner/dialog surface\n- a safe fallback for unknown/unmapped errors\n\nRESOLVED since this card was written (2026-07-12): the ServiceError code no longer lives in the ProblemDetails `type` member. It moved to its own top-level **`errorCode`** member, `type` is now a `urn:rental:error:{code}` URI, and all 8 controllers go through one shared helper. The frontend contract layer models the envelope in `Rental-Ui/src/app/api/api-error.model.ts` (`ApiProblemDetails`, `ApiErrorCode` with the 52 real codes, and `getApiErrorCode()` — the single safe reader). USE `getApiErrorCode`; do not re-derive extraction, and never parse the `type` URN.\n\nSource: verifier findings, chat image-attachments vertical (2026-07-11). See knowledge/mistakes.md M-013.",
     "prompt": "Build centralized API error handling and localization in Rental-Ui (work on branch `dev`; do not commit, do not merge to main).\n\nCONTEXT — read first:\n- `Rental-Ui/src/app/api/api-error.model.ts` — the contract layer, ALREADY BUILT. `ApiProblemDetails` models the error envelope; `ApiErrorCode` enumerates the 52 real ServiceError codes; `getApiErrorCode()` is the single safe reader (the code lives in the top-level `errorCode` member; `type` is an opaque `urn:rental:error:{code}` URI — NEVER parse it). Use these; do not re-derive them.\n- `Rental-Ui/src/app/api/http-error-message.util.ts` — today's behaviour and the core defect: renders the server's `detail`/`title` VERBATIM for any unmapped error. On a 500 this leaked a full C# stack trace with local filesystem paths into the user-facing banner (observed live by the verifier).\n- `Rental-Ui/src/app/features/chat/store/chat.effects.ts` — the ONLY existing code→i18n mapping (`CHAT_ERROR_MESSAGE_KEYS`, 3 codes). Deliberately chat-local. This is your seed, not your solution.\n- Every other feature's effects (auth, bookings, listings, reviews, admin, favorites, profile, notifications, public-profiles) is a bare passthrough — audit them all.\n\nBUILD:\n1. A shared ErrorMapper in `src/app/api/` — the single entry point every feature's effects use. It resolves the code via `getApiErrorCode`, maps it to an i18n key, and returns a translated message.\n2. SANITIZE: `detail` must never reach the user raw. An unmapped error falls back to a safe, translated generic message, never to server-supplied prose, and NEVER to an exception message or stack trace. Treat this as a hard security rule, not a nicety.\n3. Migrate every feature's effects to the shared mapper; delete the per-feature passthroughs and fold the chat-local map into the shared one.\n4. One consistent error surface (banner/dialog) instead of each feature inventing its own.\n5. i18n keys in en/ru/hy for every mapped code and for the fallback.\n\nCONSTRAINTS:\n- Do NOT change backend files.\n- Codes come from `ApiErrorCode` / the backend's `ErrorCodes` constants — never invent code strings.\n\nDONE WHEN: `npm run build` clean, `npm test` green, plus specs proving (a) a mapped code renders its translated message in a non-English locale, (b) an unmapped 500 whose `detail` contains a stack trace renders ONLY the generic fallback and leaks nothing. Report which features you migrated and any codes you could not map."
   },
   {
     "name": "M-005: harden EF MigrateAsync against SQL-startup race (docker)",
-    "labels": ["infra", "backend"],
+    "labels": [
+      "infra",
+      "backend"
+    ],
     "desc": "OPEN follow-up. The docker API crashes (exit 139) on restart: the db healthcheck (SELECT 1 on master) passes before the user DB is online, so EF Core Database.MigrateAsync() sees \"does not exist\", issues CREATE DATABASE, and hits SqlException 1801 (already exists) — unhandled, process dies.\n\nCurrent workaround is operational: docker compose -f rental-api/docker-compose.yml up -d api (succeeds on retry).\n\nProper fix: retry loop / EnableRetryOnFailure in MigrationExtensions.ApplyMigrationsAsync so transient SQL-startup errors are retried instead of crashing.\n\nSource: knowledge/mistakes.md — M-005 (still OPEN)."
   },
   {
     "name": "Content-Security-Policy header — deferred to a later sprint",
-    "labels": ["infra", "security", "backend"],
+    "labels": [
+      "infra",
+      "security",
+      "backend"
+    ],
     "desc": "rental-api/src/RentalPlatform.Api/Middleware/SecurityHeadersMiddleware.cs:4\n\"// it requires per-route asset allowlists and is deferred to a later sprint.\"\n\nCSP is not emitted. Scope: define per-route asset allowlists and enable the header."
   },
   {
     "name": "Booking: wire noteForOwner to the API (backend field missing)",
-    "labels": ["backend", "frontend", "contract"],
+    "labels": [
+      "backend",
+      "frontend",
+      "contract"
+    ],
     "desc": "Rental-Ui/src/app/features/listings/pages/listing-booking-page/listing-booking-page.component.ts:289\n// TODO: wire noteForOwner to API when backend supports notes\n\nThe renter can type a note to the owner at booking time, but it is silently dropped — the backend has no field for it.\n\nScope: add the field to the booking create DTO + entity + migration, sync the contract, send it from the UI."
   },
   {
     "name": "rental-api/README.md is outdated — rewrite or delete stale sections",
-    "labels": ["docs"],
+    "labels": [
+      "docs"
+    ],
     "desc": "M-001. The README describes an early toys-MVP: no reviews, no notifications, no booking activate/complete/cancel, no listing Draft/Archived statuses, wrong Angular version. CLAUDE.md already warns agents not to trust it.\n\nSource of truth is controllers + api-contract.ts + domain enums. Bring the README in line or delete the stale sections.\n\nSource: knowledge/mistakes.md — M-001."
+  },
+  {
+    "name": "Backups: off-site copy of production backups",
+    "labels": [
+      "infra",
+      "low-priority"
+    ],
+    "desc": "Daily backups (.bak + uploads tgz, cron 03:30, 7-day retention) land ONLY in /opt/dorent/backups on the same VPS — a single disk failure or Hetzner account loss takes both the database and its backups. Decision needed from Tigran first: Backblaze B2 free tier (10 GB, via rclone) vs periodic pull to his PC.\n\nSource: production deploy session 2026-07-13; DEPLOY-PRODUCTION.md backup section marks off-site as pending; ADR-003 amendment.",
+    "prompt": "Prerequisite from Tigran: a Backblaze B2 account + application key (or an explicit choice of the pull-to-PC variant). Then, on the dorent.am server (SSH): install rclone, configure a B2 remote (credentials live only on the server, never in the repo), extend deploy/backup-production.sh (rental-api repo, branch dev) with an rclone copy of /opt/dorent/backups after a successful local backup, add remote-side retention (e.g. 30 days), update the backup section of DEPLOY-PRODUCTION.md, and prove it: run the cron entry once manually, then restore a .bak downloaded FROM B2 via ./deploy/backup-production.sh --verify semantics. Commit script/doc changes on dev, do not push to main."
+  },
+  {
+    "name": "Monitoring: UptimeRobot for dorent.am",
+    "labels": [
+      "infra",
+      "low-priority"
+    ],
+    "desc": "No uptime monitoring: if the site goes down, nobody is notified. Human task (needs a personal account, no agent access): sign up at uptimerobot.com (free plan), add HTTP(s) monitor for https://dorent.am/ (5-min interval, email alert), plus a Keyword monitor on https://dorent.am/api/listings?page=1&pageSize=1 (keyword: items) to catch the nginx-alive-but-API-dead case.\n\nSource: production deploy session 2026-07-13, stage 7."
+  },
+  {
+    "name": "Security: change bootstrap admin password + rotate Cloudflare tunnel token",
+    "labels": [
+      "infra",
+      "security",
+      "low-priority"
+    ],
+    "desc": "Two hygiene items from the 2026-07-13 production deploy:\n\n1. The bootstrap admin password (login tigransargsyan062@gmail.com) was machine-generated at deploy time and is stored outside the server. Log in at https://dorent.am and change it via profile — after that the stored copy becomes a dead artifact.\n\n2. The Cloudflare tunnel token transited the chat once during setup. Rotate it: Cloudflare Zero Trust → Networks → Tunnels → dorent-production → Refresh token, put the new value into /opt/dorent/rental-api/.env (CLOUDFLARE_TUNNEL_TOKEN), then docker compose -f docker-compose.production.yml up -d cloudflared.\n\nMostly human steps; an agent can do item 2 over SSH once the new token is provided in .env."
+  },
+  {
+    "name": "DNS: clean up legacy cPanel records in Cloudflare zone dorent.am",
+    "labels": [
+      "infra",
+      "low-priority"
+    ],
+    "desc": "The zone still carries the dead Name.am cPanel legacy, all pointing at the suspended host 161.97.154.98: A-records cpanel/cpcalendars/cpcontacts/ftp/webdisk/webmail/whm, CNAME mail → dorent.am, a Cloudflare placeholder MX (_dc-mx.…), SPF TXT referencing the dead IP, and cPanel SRV/DKIM/ACME/DCV records. None of them serve anything.\n\nConstraints agreed during the deploy: mail @dorent.am is unused today but may be wanted later; nothing gets deleted without Tigran's explicit per-record approval. The live records dorent.am + www.dorent.am (type Tunnel → dorent-production) must not be touched.",
+    "prompt": "Ask Tigran for a fresh screenshot/export of Cloudflare DNS → Records for dorent.am. Produce a two-column table: KEEP (the two Tunnel records, and anything Tigran wants for future mail) vs DELETE (every record pointing at 161.97.154.98 or cPanel services: A cpanel/cpcalendars/cpcontacts/ftp/webdisk/webmail/whm, CNAME mail, placeholder MX _dc-mx.*, SPF TXT with ip4:161.97.154.98, SRV _autodiscover/_caldav*/_carddav*, cPanel DKIM/ACME/DCV TXT). Present the table, get explicit approval, then walk Tigran through deleting (or delete via API if credentials are provided). Note in the table: when real mail is wanted later, proper MX/SPF/DKIM for the chosen provider (e.g. Zoho/Google) replace the legacy ones — the tunnel records are unrelated."
+  },
+  {
+    "name": "Auth: register https://dorent.am in Google OAuth origins",
+    "labels": [
+      "infra",
+      "frontend",
+      "low-priority"
+    ],
+    "desc": "Google Sign-In on production will fail until https://dorent.am (and https://www.dorent.am) are added to Authorized JavaScript origins of the OAuth client ending …oupt.apps.googleusercontent.com in Google Cloud Console. Human step (console access); afterwards verify the Google login flow live on https://dorent.am.\n\nSource: production deploy session 2026-07-13, open item."
+  },
+  {
+    "name": "Infra: rescale VPS to 4 GB (CPX21) when budget allows",
+    "labels": [
+      "infra",
+      "low-priority"
+    ],
+    "desc": "The 2 GB CPX12 + 4 GB swap + MSSQL_MEMORY_LIMIT_MB=1024 setup is a deliberate temporary compromise (ADR-003, amended 2026-07-13) — under real traffic SQL Server will start swapping and latency will degrade.\n\nUpgrade path with minimal risk: Hetzner console → server → Rescale → CPX21 (3 vCPU / 4 GB) with \"CPU and RAM only\" (keeps the 40 GB disk, so the change stays reversible), ~2 min downtime. Afterwards raise or drop MSSQL_MEMORY_LIMIT_MB in docker-compose.production.yml (rental-api dev branch) and consider removing the 4 GB swap dependency note in DEPLOY-PRODUCTION.md."
   }
 ]
