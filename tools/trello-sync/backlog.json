@@ -136,5 +136,21 @@
       "low-priority"
     ],
     "desc": "The 2 GB CPX12 + 4 GB swap + MSSQL_MEMORY_LIMIT_MB=1024 setup is a deliberate temporary compromise (ADR-003, amended 2026-07-13) — under real traffic SQL Server will start swapping and latency will degrade.\n\nUpgrade path with minimal risk: Hetzner console → server → Rescale → CPX21 (3 vCPU / 4 GB) with \"CPU and RAM only\" (keeps the 40 GB disk, so the change stays reversible), ~2 min downtime. Afterwards raise or drop MSSQL_MEMORY_LIMIT_MB in docker-compose.production.yml (rental-api dev branch) and consider removing the 4 GB swap dependency note in DEPLOY-PRODUCTION.md."
+  },
+  {
+    "name": "QA: accessibility automation baseline",
+    "labels": [
+      "frontend",
+      "low-priority"
+    ],
+    "desc": "Deliberately deferred out of the qa-engineer agent scope (2026-07-14): a11y automation without a baseline just automates noise. Prerequisite: a one-time manual a11y audit of the critical pages (axe DevTools or similar) to establish the baseline; then decide what is worth automating (axe-core in the mocked Playwright tier is the likely cheapest layer).\n\nSource: qa-engineer design discussion, 2026-07-14."
+  },
+  {
+    "name": "QA: cross-browser matrix for critical journeys",
+    "labels": [
+      "frontend",
+      "low-priority"
+    ],
+    "desc": "Deliberately deferred out of the qa-engineer agent scope (2026-07-14): Playwright currently installs chromium only. After the real-stack booking journey suite stabilizes, evaluate adding firefox/webkit projects for the mocked (fast) tier only — real-stack stays single-browser to keep runtime sane.\n\nSource: qa-engineer design discussion, 2026-07-14."
   }
 ]
