@@ -152,5 +152,22 @@
       "low-priority"
     ],
     "desc": "Deliberately deferred out of the qa-engineer agent scope (2026-07-14): Playwright currently installs chromium only. After the real-stack booking journey suite stabilizes, evaluate adding firefox/webkit projects for the mocked (fast) tier only — real-stack stays single-browser to keep runtime sane.\n\nSource: qa-engineer design discussion, 2026-07-14."
+  },
+  {
+    "name": "Infra: stop merging console output into backup.log (cron redirect)",
+    "labels": [
+      "infra",
+      "low-priority"
+    ],
+    "desc": "Design smell behind M-015: the crontab entry appends the backup script's stdout+stderr into the same file the script writes structured entries to:\n\n  30 3 * * * /opt/dorent/rental-api/deploy/backup-production.sh >> /opt/dorent/backups/backup.log 2>&1\n\nThat interleaving is what made smoke.sh grade prose instead of the outcome (fixed defensively in rental-api 33618a5, but the smell remains). Cleaner end state: drop the >> redirect entirely (the script already logs its own outcomes and its ERR trap records failures), or send console output to a separate /opt/dorent/backups/backup.out.\n\nServer-side change (crontab) + DEPLOY-PRODUCTION.md update. Task for platform-engineer.\n\nSource: knowledge/mistakes.md M-015, 2026-07-14."
+  },
+  {
+    "name": "Repo hygiene: .gitattributes eol=lf for deploy/*.sh + fix stale git remote URL",
+    "labels": [
+      "infra",
+      "docs",
+      "low-priority"
+    ],
+    "desc": "Two small papercuts found during the 2026-07-14 production work (platform-engineer):\n\n1. deploy/*.sh are stored LF in the git index but check out CRLF on Windows. Harmless for git, but a script scp'd straight from a Windows working tree to Linux gets a broken shebang (env: 'bash\r'). Fix: add .gitattributes with `*.sh text eol=lf` in rental-api (and consider the same for Rental-Ui).\n\n2. `git push` in rental-api prints \"remote: This repository moved\" — origin still points at github.com/Tigran-developer/rental-api while the repo now lives at TTigSSar/rental-api. GitHub redirects today, but redirects are not forever. Fix: `git remote set-url origin https://github.com/TTigSSar/rental-api.git` (same check for Rental-Ui)."
   }
 ]
