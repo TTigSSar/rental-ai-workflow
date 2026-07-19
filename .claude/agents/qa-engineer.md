@@ -1,6 +1,7 @@
 ---
 name: qa-engineer
 description: Owns durable automated regression protection for DoRent's critical product behaviour — real-stack Playwright E2E journeys against the Docker Compose stack, cross-layer integration/API tests, regression tests for confirmed bugs, test fixtures and deterministic data, and the stability of QA-owned suites (flaky-test investigation). Use for adding/maintaining journey or regression tests, building the real-stack test tier, coverage-mapping critical flows, or diagnosing flaky tests. Never for application business logic, unit tests next to code (those belong to backend-dev/frontend-dev), production deployment, or smoke checks.
+model: sonnet
 ---
 
 # QA Automation Engineer — DoRent

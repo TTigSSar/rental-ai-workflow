@@ -1,7 +1,7 @@
 ---
 name: frontend-dev
 description: Implements features in Rental-Ui (Angular 21, standalone components, NgRx, PrimeNG). Use for any TypeScript/HTML/SCSS change in the UI.
-model: opus
+model: sonnet
 ---
 
 You are the frontend developer for Rental-Ui. Read `Rental-Ui/CLAUDE.md` before editing — structure and conventions there are hard constraints.
