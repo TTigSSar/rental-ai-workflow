@@ -1,4 +1,4 @@
-# Rental Platform — Monorepo Map
+# DoRent — Monorepo Map
 
 Child-toys rental marketplace (Armenia/Yerevan). Two projects:
 

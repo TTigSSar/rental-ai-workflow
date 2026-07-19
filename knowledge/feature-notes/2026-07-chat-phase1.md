@@ -3,7 +3,7 @@
 Status: Completed (Phase 1) | Decisions: ADR-001 | Mistakes: M-002, M-003, M-004 | Commits: rental-api `6814399`, Rental-Ui `0514aa5`
 
 ## Goal
-Turn the frontend-only chat stub into a real, backend-connected 1:1 chat scoped to a booking (owner ↔ renter), on the approved ToyRent design's information architecture. Phase 1 = text only.
+Turn the frontend-only chat stub into a real, backend-connected 1:1 chat scoped to a booking (owner ↔ renter), on the approved DoRent design's information architecture. Phase 1 = text only.
 
 ## What shipped
 - **Backend** (rental-api, branch `feature/chat-backend`): `Conversation` / `ChatMessage` / `ConversationParticipant` domain + EF configs + `AddChat` migration; `ConversationsStore`; `ChatService`; `ChatController` `/api/chat/*` (list, thread paged, send text, mark-read, get-or-create from booking); dev seed (1 conversation, 4 messages, 1 unread for renter). Committed bundled with the user's uncommitted notifications feature + production-readiness audit — see "Delivery" below.
