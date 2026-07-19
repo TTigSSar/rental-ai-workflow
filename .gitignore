@@ -6,6 +6,10 @@
 # Claude Code local (machine-specific permissions)
 .claude/settings.local.json
 
+# Codex local tooling (mirrors .claude/agents + CLAUDE.md; kept machine-local)
+/.codex/
+/AGENTS.md
+
 # Secrets — Trello API key/token and any other local env
 .env
 **/.env
