@@ -62,10 +62,25 @@ decisions we could take cheaply (raster tiles) or defer (geocoding).
 
 ## Open, for later cards
 
-- `/security-review` had not been run at the time of writing.
 - No real-stack (`e2e/real/`) coverage: geohash fuzzing and district derivation are unit-tested only.
 - The location backfill runs on **every application start in every environment** (`Program.cs`); it is
   fill-only-nulls and cheap at current volume, but belongs in dev or a one-off migration.
 - Contract drift found incidentally during P1-9, unrelated to maps: `priceUnit` missing from the
   frontend's update/preview models, and the listings search sends `title` the backend cannot bind while
   never sending `ageGroup`/`maxDistance` — i.e. keyword search is a server-side no-op.
+
+## Post-close-out (2026-07-22)
+
+- `/security-review` ran clean on the six rental-api commits — no findings at confidence 8+. The reviewer
+  confirmed `ListingsQueryService` is the only construction site of `ListingDetailsResponse`, that both
+  gates fail closed when `PublicLatitude` is null, and that the write-time snap has no recoverable seed.
+- **Tiles moved off raw OSM.** `tile.openstreetmap.org` started returning OSMF's "418 Access blocked"
+  placeholder — served as HTTP 200 with a valid PNG, so Leaflet counts it as a successful `tileload` and
+  our degradation check cannot see it. The tile source is now configuration (`environment.tileProvider`),
+  defaulting to MapTiler with an OSM fallback when no key is set. See the ADR-007 amendment.
+  **Open:** MapTiler's free tier requires a visible MapTiler logo, not just the attribution text — not yet
+  implemented. And the key itself still has to be created and pasted into the environment files.
+- Two bugs surfaced only in production builds or on the human's machine, never in `ng serve`:
+  the CJS-interop failure (`L.map is not a function` under esbuild, swallowed by the try/catch and reported
+  as "map unavailable"), and a partial tile grid in the picker. See M-018 on why the e2e green that
+  preceded them was not evidence.
