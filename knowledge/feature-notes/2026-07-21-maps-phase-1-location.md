@@ -46,8 +46,15 @@ decisions we could take cheaply (raster tiles) or defer (geocoding).
   get the true pin; everyone else gets a cell centroid. The frontend model documents this at the field.
 - **`app-map` is the only file allowed to import Leaflet**, via dynamic `import()`. Main bundle cost of
   the whole feature: +4.27 kB; Leaflet itself is a 37.58 kB gzip lazy chunk. Keep it that way.
-- **The detail map is tap-to-load on purpose.** We are on volunteer-funded OSM tiles whose usage policy
-  excludes heavy traffic; a page view must not fetch tiles. There is an e2e journey asserting this.
+- **The detail map is tap-to-load on purpose.** ~~We are on volunteer-funded OSM tiles whose usage policy
+  excludes heavy traffic; a page view must not fetch tiles. There is an e2e journey asserting this.~~
+  **Reversed 2026-07-24 (human decision, Tigran).** The tile source changed (see the ADR-007 amendment
+  below): tiles now come from MapTiler with a real key, not raw OSM, so the reasoning behind the gate no
+  longer applies. The map now renders on page load whenever the listing has coordinates, at a taller
+  height (~400px on desktop, up from 220px). The privacy chip stays on the map; the fuller privacy
+  sentence that used to live in the removed placeholder now renders as a caption under the map instead.
+  The e2e journey was updated to assert tiles fetch on load rather than asserting zero tiles pre-tap. See
+  the ADR-007 amendment (2026-07-24) for the quota tradeoff this knowingly accepts.
 - **Leaflet needs `invalidateSize()`** once its container has real dimensions, and its own controls sit
   at z-index 1000 — both bit us during P1-6 and are handled inside `app-map`.
 
