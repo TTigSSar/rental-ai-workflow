@@ -41,7 +41,7 @@ docker compose -f rental-api/docker-compose.yml down -v   # teardown
 
 ## Demo accounts (dev seed, password `Demo1234`)
 
-`admin@rental.local` (Admin) · `owner@rental.local` (owns seeded listings) · `renter@rental.local` (books/favorites) · `user2@rental.local` · `blocked@rental.local` (IsBlocked, for auth-rejection tests)
+`admin@rental.local` (Admin) · `owner@rental.local` (owns seeded listings) · `renter@rental.local` (books/favorites) · `user2@rental.local` · `blocked@rental.local` (IsBlocked, for auth-rejection tests) · `anahit@toyrent.am`, `narek@toyrent.am`, `lilit@toyrent.am`, `davit@toyrent.am`, `mariam@toyrent.am` (owners backing the 50-listing toy-catalogue expansion, no bookings/reviews)
 
 ## Status machines (most common source of agent mistakes)
 
