@@ -12,8 +12,15 @@ description: The DoRent git delivery workflow — commit on `dev`, push to `orig
 | Path | Remote |
 |---|---|
 | `.` (rental-app) | `https://github.com/TTigSSar/rental-ai-workflow.git` |
-| `rental-api/` | `https://github.com/Tigran-developer/rental-api.git` |
-| `Rental-Ui/` | `https://github.com/Tigran-developer/Rental-Ui.git` |
+| `rental-api/` | `https://github.com/TTigSSar/rental-api.git` |
+| `Rental-Ui/` | `https://github.com/TTigSSar/Rental-Ui.git` |
+
+⚠️ **`rental-api` and `Rental-Ui` moved from the `Tigran-developer` account to `TTigSSar`** (observed 2026-08-05: every push to them answers `remote: This repository moved`). The table above is the correct, post-move location. If a local checkout still has the old URL configured, pushes keep working **only** through GitHub's redirect — which stops the moment anything is created at the old path. Fix a stale checkout with:
+
+```bash
+git -C rental-api remote set-url origin https://github.com/TTigSSar/rental-api.git
+git -C Rental-Ui  remote set-url origin https://github.com/TTigSSar/Rental-Ui.git
+```
 
 ## Hard rules
 
@@ -66,8 +73,8 @@ Auth is Git Credential Manager over HTTPS; pushes work without extra setup. If a
 **`gh` is not installed on this machine** (checked 2026-07-31, absent from PATH and from `C:\Program Files\GitHub CLI`). So do not attempt `gh pr create` — it will fail. Instead, hand Tigran the prefilled compare link:
 
 - rental-app: https://github.com/TTigSSar/rental-ai-workflow/compare/main...dev?expand=1
-- rental-api: https://github.com/Tigran-developer/rental-api/compare/main...dev?expand=1
-- Rental-Ui: https://github.com/Tigran-developer/Rental-Ui/compare/main...dev?expand=1
+- rental-api: https://github.com/TTigSSar/rental-api/compare/main...dev?expand=1
+- Rental-Ui: https://github.com/TTigSSar/Rental-Ui/compare/main...dev?expand=1
 
 Post the link(s) in your reply along with a ready-to-paste PR title and body:
 
