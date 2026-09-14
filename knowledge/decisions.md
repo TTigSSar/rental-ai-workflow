@@ -148,6 +148,18 @@ The `Item & Booking` design makes a free-text note the centrepiece of the bookin
 
 **Rejected:** (a) **Revealing on `Pending`** — above. (b) **Adding the note to `BookingResponse`** (the create response and `/bookings/mine`) — the renter already knows what they typed; two read paths were enough. (c) **A service fee line** in the price breakdown, which the design shows — that is a pricing/business decision with billing consequences, not a UI one. The **refundable deposit** line was added instead, from the `depositAmount` the listing already carries, marked as not charged now and **excluded from the total**.
 
+**Amended 2026-09-14 — the phone reveal is gone; chat replaced it.** This ADR's central mechanism, "the server reveals contact only at `Approved`+", no longer exists. `ListingOwnerResponse.PhoneNumber` and `BookingDetailResponse.CounterpartyPhoneNumber` were deleted, so **no endpoint returns another user's phone number** to a renter or an owner, at any booking status. The four padlock notices that existed to explain the wait now read as chat notices instead.
+
+**Why the mechanism became redundant rather than merely unpopular:** this ADR already recorded that chat is strictly booking-scoped (`from-booking/{bookingId}` is the only creation path). That fact, written down here as a *limitation*, is the whole feature. It means "a renter can reach an owner only after a rental request exists" is enforced by the schema, not by copy — which is exactly the property the `Approved` gate was protecting. Once chat existed, the platform-mediated reveal was a second, worse answer to a question already answered: worse because the platform handed the number over automatically, where chat lets the renter **ask** and the owner **choose**. Consent beats a status gate. Tigran's call.
+
+**One loosening, accepted knowingly:** chat opens at `Pending`, whereas the phone unlocked at `Approved`. So the renter reaches the owner one status earlier than before — but reaches a message thread, not a phone number, and the owner can simply not reply. This is the intended rule ("message the owner only after a rental request"), not an oversight.
+
+**What survived:** the pickup **`AddressLine`** is still gated to `Approved`+ — `ContactRevealed` in `ListingsQueryService` and `contactRevealed` in `BookingsService` are kept for it and now document that single purpose. Phone is still **collected** at registration, still shown to the user on their own profile, and still drives the `IsPhoneConfirmed` trust badge; only the cross-user reveal is gone. `User.PhoneNumber` was untouched — **no migration**.
+
+**The deliberate exception: admins.** `AdminUserSummaryResponse.PhoneNumber` and `AdminListingDetailResponse.OwnerPhoneNumber` were added so moderators can call a member. Both ride endpoints already carrying `[Authorize(Roles = "Admin")]`, and `OwnerPhoneNumber` is on the inspect **detail** DTO only — not the summary or pending-review DTOs, so it never reaches the queue lists. Rendered as `tel:` links in the admin user dialog, the users page and the owner trust panel.
+
+**Net effect on the security posture: strictly narrower.** The old rule let any renter unlock any owner's number by getting one booking approved; there is now no API path to another user's phone outside the admin role. The regression is pinned from both directions — `ListingOwnerPhoneNotExposedTests` asserts `phoneNumber` never appears in the listing-detail JSON at any booking status, and `e2e/listing-contact-privacy.spec.ts` was strengthened rather than retired.
+
 ## ADR-014: The design is the source of truth for form; the backend is the source of truth for claims
 Date: 2026-08-05 | Area: process (design → implementation)
 
