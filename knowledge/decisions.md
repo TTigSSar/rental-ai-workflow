@@ -146,7 +146,7 @@ The `Item & Booking` design makes a free-text note the centrepiece of the bookin
 
 **Consequence worth knowing:** chat conversations are strictly booking-scoped server-side (`from-booking/{bookingId}` is the only creation path), so pre-booking chat does not exist. The details page's "Message owner" therefore routes to the owner's public profile, while the confirmation's routes to a real thread. The two buttons share a label and do different things — that asymmetry is forced by the backend, not a design slip.
 
-**Rejected:** (a) **Revealing on `Pending`** — above. (b) **Adding the note to `BookingResponse`** (the create response and `/bookings/mine`) — the renter already knows what they typed; two read paths were enough. (c) **A service fee line** in the price breakdown, which the design shows — that is a pricing/business decision with billing consequences, not a UI one. The **refundable deposit** line was added instead, from the `depositAmount` the listing already carries, marked as not charged now and **excluded from the total**.
+**Rejected:** (a) **Revealing on `Pending`** — above. (b) **Adding the note to `BookingResponse`** (the create response and `/bookings/mine`) — the renter already knows what they typed; two read paths were enough. (c) **A service fee line** in the price breakdown, which the design shows — that is a pricing/business decision with billing consequences, not a UI one. The **refundable deposit** line was added instead, from the `depositAmount` the listing already carries, marked as not charged now and **excluded from the total**. *(Superseded 2026-09-17 by ADR-018: that line is now "Loss & damage compensation", still excluded from the total.)*
 
 **Amended 2026-09-14 — the phone reveal is gone; chat replaced it.** This ADR's central mechanism, "the server reveals contact only at `Approved`+", no longer exists. `ListingOwnerResponse.PhoneNumber` and `BookingDetailResponse.CounterpartyPhoneNumber` were deleted, so **no endpoint returns another user's phone number** to a renter or an owner, at any booking status. The four padlock notices that existed to explain the wait now read as chat notices instead.
 
@@ -162,6 +162,8 @@ The `Item & Booking` design makes a free-text note the centrepiece of the bookin
 
 ## ADR-014: The design is the source of truth for form; the backend is the source of truth for claims
 Date: 2026-08-05 | Area: process (design → implementation)
+
+*Applied again in ADR-018 (2026-09-17), which removed the "refundable deposit" claim itself and excluded the compensation design's unbacked copy.*
 
 Implementing the `Item & Booking` design surfaced a recurring class of block: visually specified, structurally sound, and backed by no data the platform actually has. Rather than decide ad hoc each time, the rule applied throughout was: **a design mock specifies layout, hierarchy and treatment; it does not license a factual claim the backend cannot substantiate.** Where the two conflict, the block is dropped and the omission reported — never filled with a plausible constant.
 
@@ -217,3 +219,24 @@ The owner asked for "How can renters get the toy?" to allow both Pickup and Cour
 **3. Minimum rental gained 30/90/180/365 days** within the existing `[Range(1, 365)]`, so there was no backend change. The eight chips get their own full-width row, one line from 1024px up and wrapping below. A half-column, horizontally scrolling line was tried first and rejected by the owner after screenshots: it clipped "1 month" mid-word and hid half the options. The listing page shows the chip label ("1 year") instead of "365 nights" whenever the value matches a chip. The min-stay highlight tile still shows a day count, because its copy can't absorb a label; that is an open copy decision.
 
 **Rejected:** (a) **Turning `deliveryType` itself into an array/flags value.** It is a simpler model, but a breaking contract change for any client still reading the scalar. (b) **Two boolean columns** (`OffersPickup`/`OffersCourier`). They don't extend to a third handover mode without another migration, and the enum already existed. (c) **Keeping the address input next to the map button.** The owner explicitly asked for its removal.
+
+## ADR-018: The refundable deposit is redefined as a loss & damage compensation amount, required and never collected
+Date: 2026-09-17 | Area: backend + frontend (listing field, create/edit wizard, item and booking pages)
+
+`Listing.DepositAmount` was an optional "Refundable deposit": money the renter was implied to hand over and get back. DoRent processes no money (ADR-014, Terms), so the label promised a transaction that nobody runs. It had also been unsettable since the Flow A redesign (`c7fd49e`, `2c67d3d`) dropped the input from both the wizard and the edit form, so only seeded listings carried a value. Tigran redefined the field as what owners actually need: **the amount the renter owes the owner if the toy is lost, seriously damaged, or not returned.**
+
+**1. Semantics: nothing upfront, and the amount is a cap.** No money moves at booking or pickup. Lost or not returned means the full amount. Damage is agreed between owner and renter and never exceeds it. The copy states all three facts wherever renters meet the amount, and deliberately contains no claims, guarantee, insurance or refund language — ADR-014's rule, applied to a field that previously broke it.
+
+**2. Full rename, not a relabel.** `DepositAmount` → `CompensationAmount` in the entity, DTOs, wire contract (`compensationAmount`) and UI models, via migration `RenameDepositAmountToCompensationAmount`, a pure `RenameColumn`. Existing values carry over unchanged. The JSON rename breaks stale clients; accepted because the SPA and API deploy together, so no alias was kept.
+
+**3. Required, 1,000–10,000,000 AMD.** `[Required]` + `[Range]` on create; the same range, optional, on the partial update, which stays in the non-content group and never re-triggers moderation (a number cannot carry disallowed text). Old listings without an amount are **not** hidden or re-moderated: they read "Not specified" until the owner edits, and the edit form then requires it.
+
+**4. "Not specified" is shown, never hidden.** On the item page and in the booking breakdown an absent amount renders as "Not specified" rather than removing the row. Two listing generations that look identical but behave differently would teach renters that no row means "nothing to pay, ever". **An amount counts as set only when it is a finite number > 0** (`isCompensationAmountSet`, one shared helper): the old validator allowed 0, the rename preserved it, and treating 0 as "Up to 0 ֏" in some places and "Not specified" in others was caught by `/code-review`.
+
+**5. Owner-loud, renter-quiet.** The owner sets it in its own card on wizard step 3 ("Protects you — not income"), so it never reads as earnings. For the renter it is informational: a specs tile and pickup row at the same weight as age and condition, and in the booking breakdown the only dashed, muted row, excluded from the total, with a line under the total saying so and an info popover with the three facts.
+
+**Deviations from the Claude Design spec, all deliberate:** amounts use `DramCurrencyPipe` (`45,000 ֏`), not the mock's space-grouped `45 000 ֏`; the copy-deck sidebar line promising "free cancellation up to 24h" was not used (no such policy exists — the implemented mock text had no such claim); the mock's service fee, booking-frequency and reply-rate content around the new row stays excluded per ADR-014; the hygiene row moved to `pi-sparkles` so compensation could own the shield.
+
+**Open consequence:** bookings do not snapshot the amount — `BookingResponse`/`BookingDetailResponse` read the listing's current value — so an owner who raises it after a booking exists changes what that renter's booking page shows. Harmless while DoRent collects nothing; revisit if the agreed figure ever needs to be evidential.
+
+**Rejected:** (a) **Keeping it a prepaid refundable deposit** — the platform cannot back the refund promise. (b) **Letting each owner choose deposit vs. compensation** — two models, two sets of copy, one confused renter. (c) **A renter consent checkbox at booking**, optionally stored — Tigran chose information over a click-through; a stored consent would imply DoRent arbitrates. (d) **Relabelling the UI only and keeping `DepositAmount` in code and schema** — cheaper now, a permanently misleading name. (e) **Hiding the row when no amount is set** — see 4.
