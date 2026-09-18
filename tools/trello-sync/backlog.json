@@ -1,6 +1,7 @@
 [
   {
     "name": "Chat: presence — \"Active now\" in thread header",
+    "priority": "Low",
     "labels": [
       "chat",
       "backend",
@@ -10,6 +11,7 @@
   },
   {
     "name": "Chat: push notifications for new messages",
+    "priority": "Medium",
     "labels": [
       "chat",
       "backend",
@@ -19,6 +21,7 @@
   },
   {
     "name": "Chat: app-wide entry points — audit + complete",
+    "priority": "Medium",
     "labels": [
       "chat",
       "frontend"
@@ -27,6 +30,7 @@
   },
   {
     "name": "Chat: open conversation with renter from owner-listing page",
+    "priority": "High",
     "labels": [
       "chat",
       "frontend"
@@ -35,6 +39,7 @@
   },
   {
     "name": "Chat: mobile 375px — long toy title truncates mid-word",
+    "priority": "Lowest",
     "labels": [
       "chat",
       "frontend",
@@ -44,6 +49,7 @@
   },
   {
     "name": "Centralized API error handling & localization",
+    "priority": "High",
     "labels": [
       "frontend",
       "security",
@@ -54,6 +60,7 @@
   },
   {
     "name": "M-005: harden EF MigrateAsync against SQL-startup race (docker)",
+    "priority": "High",
     "labels": [
       "infra",
       "backend"
@@ -62,6 +69,7 @@
   },
   {
     "name": "Content-Security-Policy header — deferred to a later sprint",
+    "priority": "Medium",
     "labels": [
       "infra",
       "security",
@@ -71,6 +79,7 @@
   },
   {
     "name": "Booking: wire noteForOwner to the API (backend field missing)",
+    "priority": "High",
     "labels": [
       "backend",
       "frontend",
@@ -80,6 +89,7 @@
   },
   {
     "name": "rental-api/README.md is outdated — rewrite or delete stale sections",
+    "priority": "Low",
     "labels": [
       "docs"
     ],
@@ -87,109 +97,110 @@
   },
   {
     "name": "Backups: off-site copy of production backups",
+    "priority": "Medium",
     "labels": [
-      "infra",
-      "low-priority"
+      "infra"
     ],
     "desc": "Daily backups (.bak + uploads tgz, cron 03:30, 7-day retention) land ONLY in /opt/dorent/backups on the same VPS — a single disk failure or Hetzner account loss takes both the database and its backups. Decision needed from Tigran first: Backblaze B2 free tier (10 GB, via rclone) vs periodic pull to his PC.\n\nSource: production deploy session 2026-07-13; DEPLOY-PRODUCTION.md backup section marks off-site as pending; ADR-003 amendment.",
     "prompt": "Prerequisite from Tigran: a Backblaze B2 account + application key (or an explicit choice of the pull-to-PC variant). Then, on the dorent.am server (SSH): install rclone, configure a B2 remote (credentials live only on the server, never in the repo), extend deploy/backup-production.sh (rental-api repo, branch dev) with an rclone copy of /opt/dorent/backups after a successful local backup, add remote-side retention (e.g. 30 days), update the backup section of DEPLOY-PRODUCTION.md, and prove it: run the cron entry once manually, then restore a .bak downloaded FROM B2 via ./deploy/backup-production.sh --verify semantics. Commit script/doc changes on dev, do not push to main."
   },
   {
     "name": "Monitoring: UptimeRobot for dorent.am",
+    "priority": "Low",
     "labels": [
-      "infra",
-      "low-priority"
+      "infra"
     ],
     "desc": "No uptime monitoring: if the site goes down, nobody is notified. Human task (needs a personal account, no agent access): sign up at uptimerobot.com (free plan), add HTTP(s) monitor for https://dorent.am/ (5-min interval, email alert), plus a Keyword monitor on https://dorent.am/api/listings?page=1&pageSize=1 (keyword: items) to catch the nginx-alive-but-API-dead case.\n\nSource: production deploy session 2026-07-13, stage 7."
   },
   {
     "name": "Security: change bootstrap admin password + rotate Cloudflare tunnel token",
+    "priority": "High",
     "labels": [
       "infra",
-      "security",
-      "low-priority"
+      "security"
     ],
     "desc": "Two hygiene items from the 2026-07-13 production deploy:\n\n1. The bootstrap admin password (login tigransargsyan062@gmail.com) was machine-generated at deploy time and is stored outside the server. Log in at https://dorent.am and change it via profile — after that the stored copy becomes a dead artifact.\n\n2. The Cloudflare tunnel token transited the chat once during setup. Rotate it: Cloudflare Zero Trust → Networks → Tunnels → dorent-production → Refresh token, put the new value into /opt/dorent/rental-api/.env (CLOUDFLARE_TUNNEL_TOKEN), then docker compose -f docker-compose.production.yml up -d cloudflared.\n\nMostly human steps; an agent can do item 2 over SSH once the new token is provided in .env."
   },
   {
     "name": "DNS: clean up legacy cPanel records in Cloudflare zone dorent.am",
+    "priority": "Low",
     "labels": [
-      "infra",
-      "low-priority"
+      "infra"
     ],
     "desc": "The zone still carries the dead Name.am cPanel legacy, all pointing at the suspended host 161.97.154.98: A-records cpanel/cpcalendars/cpcontacts/ftp/webdisk/webmail/whm, CNAME mail → dorent.am, a Cloudflare placeholder MX (_dc-mx.…), SPF TXT referencing the dead IP, and cPanel SRV/DKIM/ACME/DCV records. None of them serve anything.\n\nConstraints agreed during the deploy: mail @dorent.am is unused today but may be wanted later; nothing gets deleted without Tigran's explicit per-record approval. The live records dorent.am + www.dorent.am (type Tunnel → dorent-production) must not be touched.",
     "prompt": "Ask Tigran for a fresh screenshot/export of Cloudflare DNS → Records for dorent.am. Produce a two-column table: KEEP (the two Tunnel records, and anything Tigran wants for future mail) vs DELETE (every record pointing at 161.97.154.98 or cPanel services: A cpanel/cpcalendars/cpcontacts/ftp/webdisk/webmail/whm, CNAME mail, placeholder MX _dc-mx.*, SPF TXT with ip4:161.97.154.98, SRV _autodiscover/_caldav*/_carddav*, cPanel DKIM/ACME/DCV TXT). Present the table, get explicit approval, then walk Tigran through deleting (or delete via API if credentials are provided). Note in the table: when real mail is wanted later, proper MX/SPF/DKIM for the chosen provider (e.g. Zoho/Google) replace the legacy ones — the tunnel records are unrelated."
   },
   {
     "name": "Auth: register https://dorent.am in Google OAuth origins",
+    "priority": "Low",
     "labels": [
       "infra",
-      "frontend",
-      "low-priority"
+      "frontend"
     ],
     "desc": "Google Sign-In on production will fail until https://dorent.am (and https://www.dorent.am) are added to Authorized JavaScript origins of the OAuth client ending …oupt.apps.googleusercontent.com in Google Cloud Console. Human step (console access); afterwards verify the Google login flow live on https://dorent.am.\n\nSource: production deploy session 2026-07-13, open item."
   },
   {
     "name": "Infra: rescale VPS to 4 GB (CPX21) when budget allows",
+    "priority": "Low",
     "labels": [
-      "infra",
-      "low-priority"
+      "infra"
     ],
     "desc": "The 2 GB CPX12 + 4 GB swap + MSSQL_MEMORY_LIMIT_MB=1024 setup is a deliberate temporary compromise (ADR-003, amended 2026-07-13) — under real traffic SQL Server will start swapping and latency will degrade.\n\nUpgrade path with minimal risk: Hetzner console → server → Rescale → CPX21 (3 vCPU / 4 GB) with \"CPU and RAM only\" (keeps the 40 GB disk, so the change stays reversible), ~2 min downtime. Afterwards raise or drop MSSQL_MEMORY_LIMIT_MB in docker-compose.production.yml (rental-api dev branch) and consider removing the 4 GB swap dependency note in DEPLOY-PRODUCTION.md."
   },
   {
     "name": "QA: accessibility automation baseline",
+    "priority": "Low",
     "labels": [
-      "frontend",
-      "low-priority"
+      "frontend"
     ],
     "desc": "Deliberately deferred out of the qa-engineer agent scope (2026-07-14): a11y automation without a baseline just automates noise. Prerequisite: a one-time manual a11y audit of the critical pages (axe DevTools or similar) to establish the baseline; then decide what is worth automating (axe-core in the mocked Playwright tier is the likely cheapest layer).\n\nSource: qa-engineer design discussion, 2026-07-14."
   },
   {
     "name": "QA: cross-browser matrix for critical journeys",
+    "priority": "Low",
     "labels": [
-      "frontend",
-      "low-priority"
+      "frontend"
     ],
     "desc": "Deliberately deferred out of the qa-engineer agent scope (2026-07-14): Playwright currently installs chromium only. After the real-stack booking journey suite stabilizes, evaluate adding firefox/webkit projects for the mocked (fast) tier only — real-stack stays single-browser to keep runtime sane.\n\nSource: qa-engineer design discussion, 2026-07-14."
   },
   {
     "name": "Infra: stop merging console output into backup.log (cron redirect)",
+    "priority": "Low",
     "labels": [
-      "infra",
-      "low-priority"
+      "infra"
     ],
     "desc": "Design smell behind M-015: the crontab entry appends the backup script's stdout+stderr into the same file the script writes structured entries to:\n\n  30 3 * * * /opt/dorent/rental-api/deploy/backup-production.sh >> /opt/dorent/backups/backup.log 2>&1\n\nThat interleaving is what made smoke.sh grade prose instead of the outcome (fixed defensively in rental-api 33618a5, but the smell remains). Cleaner end state: drop the >> redirect entirely (the script already logs its own outcomes and its ERR trap records failures), or send console output to a separate /opt/dorent/backups/backup.out.\n\nServer-side change (crontab) + DEPLOY-PRODUCTION.md update. Task for platform-engineer.\n\nSource: knowledge/mistakes.md M-015, 2026-07-14."
   },
   {
     "name": "Repo hygiene: .gitattributes eol=lf for deploy/*.sh + fix stale git remote URL",
+    "priority": "Low",
     "labels": [
       "infra",
-      "docs",
-      "low-priority"
+      "docs"
     ],
     "desc": "Two small papercuts found during the 2026-07-14 production work (platform-engineer):\n\n1. deploy/*.sh are stored LF in the git index but check out CRLF on Windows. Harmless for git, but a script scp'd straight from a Windows working tree to Linux gets a broken shebang (env: 'bash\r'). Fix: add .gitattributes with `*.sh text eol=lf` in rental-api (and consider the same for Rental-Ui).\n\n2. `git push` in rental-api prints \"remote: This repository moved\" — origin still points at github.com/Tigran-developer/rental-api while the repo now lives at TTigSSar/rental-api. GitHub redirects today, but redirects are not forever. Fix: `git remote set-url origin https://github.com/TTigSSar/rental-api.git` (same check for Rental-Ui)."
   },
   {
     "name": "Harden dormant GetValue<bool> trap in ForwardedHeadersExtensions (M-016 twin)",
+    "priority": "Low",
     "labels": [
       "backend",
-      "infra",
-      "low-priority"
+      "infra"
     ],
     "desc": "Dormant instance of the M-016 class, found by backend-dev while fixing the demo-content flag (2026-07-16):\n\n`ForwardedHeadersExtensions.cs:23` uses `section.GetValue(\"Enabled\", false)` — the default-value overload applies only when the key is fully ABSENT, not when it is present-but-empty. An empty string still throws InvalidOperationException at startup.\n\nCurrently unreachable: `ForwardedHeaders__Enabled` is not mapped in docker-compose.production.yml, so no env var can feed it an empty string. It becomes a live outage the moment anyone wires it (compose renders unset vars as \"\", and a startup throw = full site outage, since ui/cloudflared gate on api service_healthy).\n\nFix: mirror the tolerant parse used in DemoContentBootstrapExtensions.ParseDemoContentEnabled (bool.TryParse → warn + default, never throw). See knowledge/mistakes.md M-016.\n\nAlso check ForwardLimit (currently GetValue<int?> — nullable, safe) and any future value-type config reads on the startup path."
   },
   {
     "name": "A11y: --ui-focus-ring fails WCAG 2.2 SC 1.4.11 app-wide",
+    "priority": "Low",
     "labels": [
-      "frontend",
-      "low-priority"
+      "frontend"
     ],
     "desc": "Surfaced by frontend-dev while polishing the chat inbox to the approved design (2026-07-16, commit d49fe79 on Rental-Ui dev).\n\n`src/styles.css:121` defines `--ui-focus-ring: 0 0 0 3px rgba(255, 96, 8, 0.18)` — a soft orange halo at 18% alpha. WCAG 2.2 SC 1.4.11 (Non-text Contrast) requires >= 3:1 for a focus indicator. Measured against real surfaces:\n\n- white surface: 1.23:1 — fail\n- mobile cream tint (#FAF8F4): 1.22:1 — fail\n- chat active row (--ui-color-primary-soft): 1.08:1 — effectively invisible\n\nThe halo paints correctly — the CSS is not broken. It simply carries no contrast. Bordered controls (buttons, the composer, View profile) LOOK acceptable only because the halo hugs an existing border and the border does the visual work; the indicator itself is still non-conformant. Any borderless/transparent element gets no perceivable focus at all — which is exactly how this was found: chat inbox rows were pixel-identical focused vs unfocused, and a focused ACTIVE row was indistinguishable from an unfocused one, so a keyboard user could not tell \"this is open\" from \"this is where my focus is\".\n\nScope: 26 usages across 8 files (`grep -rn \"var(--ui-focus-ring)\" src --include=*.css --include=*.scss`).\n\nAlready fixed LOCALLY in chat only (conversations-page.component.scss ~L242/L255): a solid inset ring on --ui-color-primary-strong layered under the halo — 3.32-3.77:1, passes. Chat is currently the ONLY place in the app with a conformant focus indicator; that inconsistency is the real reason to do this.\n\nDeferred deliberately, not forgotten: fixing the token is an app-wide visual change touching screens outside the chat work, and the approved design defines no focus states, so there is no source of truth to defer to — it needs a human call.",
     "prompt": "Fix the app-wide keyboard focus indicator in Rental-Ui so it meets WCAG 2.2 SC 1.4.11 (>= 3:1 contrast for non-text indicators). Work on branch `dev` (nested repo; the human merges to main).\n\nPROBLEM\n`src/styles.css:121`: `--ui-focus-ring: 0 0 0 3px rgba(255, 96, 8, 0.18)`. At 18% alpha it measures 1.23:1 on white, 1.22:1 on the cream tint, 1.08:1 on --ui-color-primary-soft. It paints but is not perceivable. Bordered controls only look fine because the halo hugs their border; borderless elements show no focus at all.\n\nREFERENCE FIX (already shipped, chat only)\n`src/app/features/chat/pages/conversations-page/conversations-page.component.scss` ~L242 and ~L255 layer a solid inset ring under the halo:\n  box-shadow: inset 0 0 0 2px var(--ui-color-primary-strong), var(--ui-focus-ring);\n--ui-color-primary-strong (#e5530a) measures 3.77:1 white / 3.55:1 cream / 3.32:1 on the soft fill. --ui-color-primary (#ff6008) was tried and FAILS two of the three (3.03/2.86/2.67) — do not use it.\n\nTASK\n1. Decide the approach and propose it BEFORE mass-editing: either redefine --ui-focus-ring itself to a conformant solid ring, or add a companion token (e.g. --ui-focus-ring-solid) and migrate usages. Redefining is cleaner but shifts the look of all 26 usages at once; a companion token allows an incremental sweep. State the trade-off and get a human decision.\n2. Enumerate the blast radius: `grep -rn \"var(--ui-focus-ring)\" src --include=*.css --include=*.scss` — 26 usages in 8 files at time of writing.\n3. Apply, keeping element box sizes stable (prefer inset rings; outer rings get clipped inside overflow containers — the chat rail hit exactly this).\n4. Once done, collapse the chat-local override in conversations-page.component.scss if the global token now covers it, so the special case does not linger.\n5. Verify each of the 8 files visually by tabbing through with the KEYBOARD, at 390px and 1280px.\n\nTRAPS (both cost real time when this was first investigated — do not rediscover them)\n- Clicking an element first poisons :focus-visible for later programmatic .focus() calls (Chrome last-interaction heuristic) and fabricates a false \"no ring\" reading. Drive the repro by keyboard only.\n- Reading computed box-shadow immediately after focus returns the TRANSITION START value (rgba(0,0,0,0) 0px 0px 0px 0px) because .chat-row has `transition: box-shadow 0.15s`. Wait for the transition or read after it settles.\n\nCONSTRAINTS\n- The repo is entirely CRLF. Verify formatting with `npx prettier --check --end-of-line crlf <files>`. NEVER run `prettier --write` without --end-of-line crlf — it rewrites line endings repo-wide.\n- The approved design defines no focus states; this is an accessibility decision, not a design-fidelity one.\n\nDONE WHEN: `npx ng build` clean, `npx ng test --watch=false` green (baseline 29 files / 264 tests), every focusable control shows a >= 3:1 indicator, and screenshots prove focus is visible on both bordered and borderless controls."
   },
   {
     "name": "Listing wizard: Pickup area — district picker vs free-text city/address",
+    "priority": "Low",
     "labels": [
       "frontend",
       "backend"
@@ -199,6 +210,7 @@
   },
   {
     "name": "Listing wizard: header \"Save\" / draft persistence",
+    "priority": "Medium",
     "labels": [
       "frontend",
       "backend"
@@ -208,6 +220,7 @@
   },
   {
     "name": "Listing wizard: preview \"Verified\" / \"Hygiene checked\" badges",
+    "priority": "Low",
     "labels": [
       "frontend",
       "backend"
@@ -217,6 +230,7 @@
   },
   {
     "name": "Listing wizard: rate-unit \"typical price\" hints need real market data",
+    "priority": "Low",
     "labels": [
       "frontend",
       "docs"
@@ -226,15 +240,16 @@
   },
   {
     "name": "Design source: Step 2 create-listing mockup still carries stale 4-step chrome",
+    "priority": "Low",
     "labels": [
-      "docs",
-      "low-priority"
+      "docs"
     ],
     "desc": "Found during the create-listing design-alignment pass (2026-07-17). This is a bug in the DESIGN PROJECT, not the code.\n\nThe DoRent \"List your toy\" flow is a 5-step wizard (Photos, Basics, Pricing & Location, Safety & Hygiene, Preview & Submit). Four of the five mobile steps use the shared 5-step FAWizardHeader/FAWizardFooter. But Step 2 (FACreateListing, flow-a-extra.jsx:9) was never migrated — it still renders its own inline header reading \"Step 2 of 4 · Basics\" with a 4-SEGMENT progress bar (flow-a-extra.jsx:19,22-26) and its own inline Back/Continue row.\n\nThe implementation is CORRECT (uniform 5-step chrome on every step); the design is internally inconsistent and stale on this one screen. No code change — this is a note to fix the mockup upstream in the Claude Design project (df24299b-1299-4804-8a0a-5484005594c3) so the design stops contradicting itself and the shipped app. Recorded so the next person diffing design-vs-code doesn't re-report the code as wrong.",
     "prompt": "Fix the DoRent design mockup (Claude Design project df24299b-1299-4804-8a0a-5484005594c3, file Listing.html), NOT the app code. Migrate the mobile Step-2 screen FACreateListing (flow-a-extra.jsx:9) off its stale inline 4-step chrome onto the shared 5-step FAWizardHeader/FAWizardFooter that the other four steps (flow-a-mvp-final.jsx) already use. It currently renders \"Step 2 of 4\" with a 4-segment progress bar and its own inline Back/Continue row, contradicting the 5-step flow and the shipped app. Use the DesignSync tool + /design-sync skill; edit incrementally, one component. Do not touch the Angular app — the code is already correct."
   },
   {
     "name": "Home breaks the \"one grid\" lockstep it documents: 24px vs 16px top gutter at <=560px",
+    "priority": "Lowest",
     "labels": [
       "frontend",
       "cosmetic"
@@ -244,6 +259,7 @@
   },
   {
     "name": "Refactor: .page-container conflates horizontal grid with vertical page gutter",
+    "priority": "Low",
     "labels": [
       "frontend"
     ],
@@ -252,53 +268,54 @@
   },
   {
     "name": "Home mobile search bar duplicates the /listings sticky search instead of sharing it",
+    "priority": "Low",
     "labels": [
-      "frontend",
-      "low-priority"
+      "frontend"
     ],
     "desc": "Found by /code-review (high effort) on the Rental-Ui `dev` branch before the Home-design merge, 2026-07-19. Commits in scope: 1fa4995, 8f06c4c, ee707e7, b6927af. Full-tier `verifier` returned \"ready\" on the same branch — these are quality/consistency items that did not block the merge, not regressions.\n\n`.home__mobile-search` (home-page.component.scss:70) re-implements the /listings mobile sticky search by copying its values. The code comment itself says it \"mirrors .lp-sticky-header + .lf-bar\" — spacing, height, radius, shadow, and the same shared app-ui-input in filled md size, minus the filter button.\n\nNone of it is actually shared, and the two have ALREADY diverged: Home uses a 16px side gutter, /listings uses 10px, so the two bars sit 6px apart from the viewport edge. Any future change to the listings bar silently leaves Home behind.",
     "prompt": "In Rental-Ui, extract the mobile sticky search treatment shared by Home and /listings so the two are provably identical instead of copy-paste.\n\nSources: `.home__mobile-search` / `.home__mobile-search-bar` in src/app/features/home/pages/home-page/home-page.component.scss (added by 1fa4995), and `.lp-sticky-header` / `.lf-bar` in the listings page. Home deliberately omits the filter control that /listings has — the shared piece must support both.\n\nDecide between a shared component and a shared class/mixin based on how much behaviour (not just styling) is common; Home drives visibility from HeaderSearchVisibilityService while /listings is always visible, so the reveal logic likely stays with Home.\n\nWhile doing this, resolve the existing 16px vs 10px side-gutter divergence — pick one deliberately and say which.\n\nThe rendered result on both pages must be unchanged apart from that gutter decision. Keep the existing specs in home-page.mobile-search.spec.ts passing. Verify live at 375px on both pages against the Docker stack. Commit on dev."
   },
   {
     "name": "Dead max-width: 1440px on .profile-page can never bind",
+    "priority": "Low",
     "labels": [
       "frontend",
-      "cosmetic",
-      "low-priority"
+      "cosmetic"
     ],
     "desc": "Found by /code-review (high effort) on the Rental-Ui `dev` branch before the Home-design merge, 2026-07-19. Commits in scope: 1fa4995, 8f06c4c, ee707e7, b6927af. Full-tier `verifier` returned \"ready\" on the same branch — these are quality/consistency items that did not block the merge, not regressions.\n\nCommit 8f06c4c set `max-width: 1440px` on `.profile-page` at >=961px (profile-page.component.scss:739), replacing `max-width: none`.\n\n`.profile-page` sits inside `.page-container`, whose content box is at most 1440px minus 2x70px = 1300px at any viewport. A 1440px max-width on a child of a 1300px box never constrains anything — the declaration is dead.\n\nThe intent (stop the profile column going full-viewport, which `max-width: none` allowed only because `.page-container` used to be `width: min(1200px, 100%)`) is real, but `width: 100%` — or simply removing the declaration — expresses it without implying a 1440px bound that does not exist. As written it will mislead the next person measuring the profile column.",
     "prompt": "In Rental-Ui, replace the dead `max-width: 1440px` on `.profile-page` in the `@media (min-width: 961px)` block of src/app/features/profile/pages/profile-page/profile-page.component.scss (~line 739).\n\nIt cannot bind: the element is inside `.page-container`, whose content box maxes out at 1300px (1440 minus 2x70px gutters). Confirm that in the browser before changing it, then replace it with whatever honestly expresses the intent — most likely `width: 100%` or dropping the declaration entirely and letting the container bound it. Update the surrounding comment, which currently explains the 1440 value.\n\nVerify /profile and all four child pages look identical at 961px, 1440px and 1920px against the Docker stack. Keep npm test green. Commit on dev."
   },
   {
     "name": "Listing gallery blurred backdrop eagerly loads and blurs the full-resolution photo",
+    "priority": "Low",
     "labels": [
-      "frontend",
-      "low-priority"
+      "frontend"
     ],
     "desc": "Found by /code-review (high effort) on the Rental-Ui `dev` branch before the Home-design merge, 2026-07-19. Commits in scope: 1fa4995, 8f06c4c, ee707e7, b6927af. Full-tier `verifier` returned \"ready\" on the same branch — these are quality/consistency items that did not block the merge, not regressions.\n\nCommit ee707e7 added a decorative blurred backdrop behind the contain-fitted hero image (listing-gallery.component.html, `.listing-gallery__hero-backdrop`, CSS at listing-gallery.component.css:33).\n\nIt reuses the hero's exact `src` — deliberately, so the browser serves it from cache and there is only one network request. But it also carries `loading=\"eager\"` and is composited through `filter: blur(24px)` at `transform: scale(1.1)`.\n\nCost on low-end mobile: the full-size photo is decoded twice, and the blur allocates an offscreen surface proportional to the scaled element. The visible output is a 24px blur, so a much smaller downscaled source would look identical at a fraction of the memory. `loading=\"eager\"` additionally denies the browser any chance to defer a purely decorative layer.\n\nLow severity — measure before optimising.",
     "prompt": "In Rental-Ui, reduce the cost of the decorative blurred backdrop in the listing gallery.\n\nFile: src/app/features/listings/components/listing-gallery/listing-gallery.component.{html,css}, element `.listing-gallery__hero-backdrop` (added by ee707e7).\n\nMEASURE FIRST — do not optimise blind. Profile a listing details page with a large photo on a throttled mobile profile (Chrome DevTools 4x CPU slowdown) and record decode time, memory and any paint/compositing cost attributable to the backdrop. If the cost is negligible, close this card with the measurements and change nothing.\n\nIf it is worth fixing, options in rough order of preference: serve a smaller downscaled variant as the backdrop source if the API/upload pipeline already produces thumbnails (check what the listings image endpoints expose before assuming); drop `loading=\"eager\"`; reduce the blur radius if it looks identical.\n\nHard constraints: the backdrop must keep following the active image on both arrow nav and thumbnail click, stay decorative (aria-hidden, empty alt, not focusable), and must NOT reintroduce a second full-size network request. The foreground photo keeps object-fit: contain — the product is never cropped.\n\nVerify live against the Docker stack at 375px and 1440px on a listing with several photos. Commit on dev."
   },
   {
     "name": "nginx behind Cloudflare Tunnel: real client IP is lost, and SPA fallback answers 200 to scanner paths",
+    "priority": "Low",
     "labels": [
       "infra",
-      "security",
-      "low-priority"
+      "security"
     ],
     "desc": "Found during a read-only traffic analysis of the dorent.am production stand, 2026-07-22 (36h of nginx access logs, 1052 external requests from 63 unique IPs). No attack found — but the analysis surfaced two configuration facts worth fixing before they start to matter.\n\nISSUE 1 — the real client IP never reaches the backend.\nrealip_module is not configured in Rental-Ui/nginx.conf (no set_real_ip_from / real_ip_header). Consequence: $remote_addr is always 172.18.0.3 (the cloudflared container), and nginx.conf:49 forwards precisely that as X-Real-IP. The backend therefore sees ONE identical address for every visitor on the internet. Nothing reads it today, so nothing is broken — but the moment anything does rate limiting, abuse blocking or IP auditing, it will silently treat the entire internet as a single client. The genuine client IP is available today only via X-Forwarded-For, which cloudflared populates.\nWorth adding while in the file: log_format main carries no $request_time / $upstream_response_time, so response latency cannot be measured from logs at all.\n\nISSUE 2 — scanner probes get 200 instead of 404.\nThe SPA try_files fallback (nginx.conf:31) serves index.html for every unmatched path. Measured in production: /config/.env, /app/.env, /api/.env, /xmlrpc.php and /wp-includes/wlwmanifest.xml all return 200 with a body of exactly 2862 bytes — the Angular index.html. Nothing leaks (it is only the app shell; the real .env lives on the host at mode 600 and is not in the UI image), but there are two real costs: scanners read 200 as \"this path exists\" and keep coming back, and any 404-rate-based detection or analytics is blind — only 13 genuine 404s were recorded across 36 hours.\nObserved probe traffic: 178.16.54.137 ran 34 .env probes; 85.204.70.88 / .106 / .116 ran 63 WordPress probes between them. Roughly 22% of all external traffic is bots and scanners.\n\nLow priority deliberately: neither issue causes user-visible harm today, and the volume is trivial (~29 real requests/hour).\n\nSee also the sibling card about /api/profile/me — the ASP.NET container logs ZERO HTTP requests (HttpLogging is off, only EF Core SQL is emitted), which is why that user-facing 404 was discoverable only from nginx.",
     "prompt": "Harden the production nginx configuration on the dorent.am stand. Owner: platform-engineer. Two independent changes — they may ship together but must be verified separately.\n\nCHANGE 1 — restore the real client IP (do this first; it has the lasting value).\nIn Rental-Ui/nginx.conf, configure realip_module so $remote_addr becomes the actual client:\n  - set_real_ip_from must cover the cloudflared container, currently 172.18.0.3 on the docker network. Do NOT hardcode a single container IP that docker can reassign — use the docker network subnet, and confirm that subnet with docker network inspect before writing it.\n  - real_ip_header CF-Connecting-IP (cloudflared sets it), with X-Forwarded-For as the documented fallback. Confirm which header is actually present by inspecting live requests before choosing.\n  - Once realip is active, the existing proxy_set_header X-Real-IP $remote_addr at nginx.conf:49 starts forwarding the true client IP with no further edit — verify that rather than assuming.\n  - Add $request_time and $upstream_response_time to log_format so latency becomes measurable.\nSECURITY REQUIREMENT: set_real_ip_from must trust ONLY the tunnel. If it ever trusts a broader range, a client could spoof its own IP by sending the header. Ports 80/443 are closed and the only ingress is the tunnel — keep it that way.\n\nCHANGE 2 — stop answering 200 to obvious scanner paths. Decide between two approaches and justify the choice:\n  (a) Cloudflare WAF rules at the edge — cheaper, keeps the junk off the origin entirely, does not touch nginx routing at all. Recommended.\n  (b) nginx location blocks returning 404 for .php/.env/.xml and known WordPress paths BEFORE the try_files fallback.\nHARD CONSTRAINT if you touch nginx: the SPA fallback and the /hubs/ SignalR WebSocket proxy must keep working. M-008 in knowledge/mistakes.md records that this exact proxy has been broken before — deep-linking to any Angular route and the chat WebSocket upgrade (currently returning 101 Switching Protocols, confirmed 20 times in production) are both non-negotiable.\n\nVERIFY: rebuild and test locally against the Docker stack first — never experiment on production. Then deploy through the normal release path and run deploy/smoke.sh; the deploy is not done until smoke passes. Afterwards confirm on the live stand that a real browser request shows a genuine public IP in the logs, that a deep link such as /listings/<id> still loads, and that chat still connects. Never docker compose down -v in production. Update the infrastructure docs with whatever you change."
   },
   {
     "name": "Listings filter chip row is dead code — the only consumer passes [showChips]=\"false\"",
+    "priority": "Low",
     "labels": [
-      "frontend",
-      "low-priority"
+      "frontend"
     ],
     "desc": "Found while implementing the district filter (Maps P1-7), 2026-07-24. Pre-existing — not introduced by that work.\n\n`ListingsFiltersComponent` implements a full active-filter chip row: the `activeChips` computed, per-filter labels, and `removeChip()` to clear an individual filter. It is guarded by `@if (showChips() && activeChips().length > 0)` (listings-filters.component.html:25) and the input defaults to `true` (listings-filters.component.ts:86).\n\nBut the ONLY consumer — listings-page.component.html:6 — passes `[showChips]=\"false\"`. So none of it has ever rendered in production: not the city chip, not category, not price, and not the district chips added in ddf041c.\n\nTwo things follow:\n1. A meaningful chunk of `ListingsFiltersComponent` is unreachable code that still gets maintained, tested and reasoned about. Every future filter added there pays the cost of wiring a chip nobody sees.\n2. The mobile experience may or may not need it — the bottom sheet already shows selections inside the controls themselves (the multiselect renders its own chip labels), and the filter button carries a count badge. So the chip row might be genuinely redundant rather than accidentally hidden.\n\nThat is exactly why this is a decision, not a one-line fix: flipping the boolean to true could duplicate what the sheet already communicates.",
     "prompt": "Decide the fate of the active-filter chip row in Rental-Ui's listings filters, then implement the decision.\n\nSTEP 1 — establish the facts before changing anything. `ListingsFiltersComponent` (src/app/features/listings/components/listings-filters/) has an `activeChips` computed, chip markup guarded by `@if (showChips() && activeChips().length > 0)` at listings-filters.component.html:25, a `showChips` input defaulting to true at listings-filters.component.ts:86, and a `removeChip()` handler. Its only consumer, listings-page.component.html:6, passes `[showChips]=\"false\"`. Confirm all of that still holds, and find out from git history WHEN and WHY the consumer started passing false — it may have been deliberate.\n\nSTEP 2 — the decision, which needs a human. Two honest options, do not pick unilaterally:\n  (a) The chip row is redundant on mobile: the bottom sheet already shows each selection inside its own control, and the filter trigger shows a count badge. Then DELETE the chip machinery (markup, `activeChips`, `removeChip`, the `showChips` input and its CSS) rather than leaving unreachable code that every future filter has to feed.\n  (b) The chip row is wanted: then remove the `[showChips]=\"false\"` override, verify the row does not duplicate what the sheet already shows, and check it looks right at 390px with several filters active including 2+ districts (the labels are long in Armenian).\nLook at the desktop toolbar chip row first — desktop already shows removable chips for category, age, distance and (as of this work) districts. Whatever is decided for mobile should be a considered choice against that, not an accident.\n\nSTEP 3 — implement the chosen option. If (a), make sure no test asserts on the deleted machinery in a way that hides its removal. If (b), the district chips must remove individually (each chip carries its district id) — that logic already exists.\n\nCONSTRAINTS: user-facing strings via ngx-translate; district names are NOT translated, they come from the backend in three languages via districtDisplayName() (see district-ui.util.ts). Keep npm test green. Verify live against the Docker stack at 390px and 1440px. Commit on dev; never merge or push to main."
   },
   {
     "name": "ListingDetails frontend model is missing 9 fields the backend already returns",
+    "priority": "Low",
     "labels": [
       "frontend",
       "docs"
@@ -308,6 +325,7 @@
   },
   {
     "name": "QA: map-pins-privacy real-stack spec fails — anon pin within 0.0005° of exact latitude",
+    "priority": "Highest",
     "labels": [
       "privacy",
       "backend",
@@ -318,6 +336,7 @@
   },
   {
     "name": "QA: real-stack tier flakes — shared 5-logins/min auth rate limit + booking-lifecycle instability",
+    "priority": "Medium",
     "labels": [
       "backend",
       "frontend"
