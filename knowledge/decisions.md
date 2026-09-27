@@ -345,3 +345,32 @@ Date: 2026-09-27 | Status: accepted | Decided by: Tigran | Area: build & deliver
 **Rejected:** (a) **Skip the two tests when SQL Server is unreachable** — fastest unblock, and rejected because a suite that goes green without running its only real-engine tests is worth less than it appears; the skip would have been invisible in the badge. (b) **Port them to SQLite** — deletes the reason they exist. (c) **Merge with CI red** — normalises a red pipeline, and this incident is evidence of how fast an unobserved CI rots. (d) **Put the SA password in GitHub Secrets** — see above.
 
 **Related:** ADR-003 (the production SA password, a genuinely different case), ADR-021 (the PR that surfaced this), M-005 (the same race, one layer in).
+
+## ADR-023: A production deploy carrying an EF migration is rehearsed against a restored backup first
+Date: 2026-09-27 | Status: accepted | Decided by: Tigran | Area: delivery process (production)
+
+**Decision:** any production deploy that carries an EF migration is rehearsed on the server **before** it touches the live database:
+
+1. Take a fresh backup and prove it restores (`deploy/backup-production.sh`, then `--verify` — they are mutually exclusive modes, so both runs are needed).
+2. Restore that same `.bak` into a throwaway database on the box.
+3. Run the **newly built** API image against the throwaway database, so the real migration code applies to real data.
+4. Compare row counts and column aggregates before and after, and confirm every migration name appears in the log as applied.
+5. Drop the throwaway database, then deploy for real.
+
+This applies to **any** migration, not only ones that look risky — the operator's read of "this one is harmless" is precisely the judgement the rehearsal exists to replace. A migration-free deploy needs none of this.
+
+**Why.** The 2026-09-27 release carried four migrations, including a data migration and a column rename over 56 live rows. It was only defensible as a HIGH-risk action because the rehearsal turned "we believe the rename is safe" into a measured before/after — `sum(DepositAmount)` 661 000.00 → `sum(CompensationAmount)` 661 000.00, identical row counts, every migration named in the log.
+
+**What it caught, which is the argument.** `AddConversationModeration` creates a **unique** filtered index. Live data happened to satisfy it, but had two rows collided, the migration would have aborted **mid-release**, after its predecessors had already applied — the worst possible state, because the schema is then neither the old one nor the new one and EF will not re-apply a partially-completed set. Nothing in a code review, a green CI run or a unit test would have surfaced that: it is a property of the production data, and only production data can answer it.
+
+**A migration is not reversible in place.** The rollback for code is `git checkout` + rebuild. The rollback for schema is restoring the backup and losing everything written since. That asymmetry is the whole reason the cheap step goes first.
+
+**Second thing it buys, and it is not incidental:** a rehearsal restores a backup, so it **proves the backup restores**. Cron takes backups without `--verify`, so restorability is otherwise only ever proven when someone remembers — the gap before this work was six weeks. Tying the proof to an event that already demands care means it happens on the deploys that most need a working backup.
+
+**Cost:** roughly ten minutes, on the subset of deploys that carry migrations.
+
+**Operational notes** (learned live, and the reason a naive attempt fails): the `.bak` must be `docker cp`'d and `chown`ed to the mssql uid inside the container; `sqlcmd` takes its password only through `SQLCMDPASSWORD`, never `-P`; `docker compose exec -T` and `run` **consume stdin**, so any piped script needs `</dev/null` on every docker call or its tail is silently eaten. Full sequence in `rental-api/DEPLOY-PRODUCTION.md`.
+
+**Rejected:** (a) **Trust green builds, unit tests and code review** — every infrastructure script in this project that mattered had bugs only a live run exposed (M-005, M-013, and the three found while writing `backup-production.sh`); and none of those layers can see production data, which is what a data migration acts on. (b) **Static review of the generated migration SQL alone** — it would have shown the rename is `sp_rename` and therefore metadata-only, but it could not have told anyone whether a new *unique* index can build against the live rows. Human review of the migration stays required (CLAUDE.md rule 5); this is in addition, not instead. (c) **Keep a permanent staging database** — costs RAM the 2 GB box does not have (ADR-004), and it drifts from production data, which is exactly the thing that needs testing.
+
+**Related:** ADR-003 (backups and the production stand), ADR-004 (why there is no staging environment to rehearse in), ADR-022 (real SQL Server in CI — the same argument one layer earlier), M-005.
