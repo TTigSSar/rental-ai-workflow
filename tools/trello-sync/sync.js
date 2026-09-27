@@ -22,6 +22,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { isPriority, validateBacklog, canonical } = require('./priority');
 
 const API = 'https://api.trello.com/1';
 const HERE = __dirname;
@@ -93,9 +94,10 @@ async function printBoards() {
 function readBacklog() {
   const file = path.join(HERE, 'backlog.json');
   const items = JSON.parse(fs.readFileSync(file, 'utf8'));
-  for (const it of items) {
-    if (!it.name || !it.desc) die(`backlog.json: every item needs "name" and "desc" — bad entry: ${JSON.stringify(it).slice(0, 80)}`);
-  }
+  // Checked before any Trello call: one bad item blocks the whole run, so no card
+  // ever reaches the board without a priority.
+  const errors = validateBacklog(items);
+  if (errors.length) die('backlog.json is invalid — nothing was synced:\n  ' + errors.join('\n  '));
   return items;
 }
 
@@ -130,9 +132,12 @@ async function resolveLabels(boardId, names, { dryRun } = {}) {
   return byName;
 }
 
-/** Labels an item carries: its own, plus AI_LABEL — every card this tool writes is AI-authored. */
+/**
+ * Labels an item carries: its own, its priority (one of PRIORITIES), plus AI_LABEL —
+ * every card this tool writes is AI-authored.
+ */
 function labelsOf(item) {
-  return [...new Set([...(item.labels || []), AI_LABEL])];
+  return [...new Set([...(item.labels || []), canonical(item.priority), AI_LABEL])];
 }
 
 async function sync({ dryRun }) {
@@ -161,7 +166,10 @@ async function sync({ dryRun }) {
   for (const it of present) {
     const card = byName.get(it.name.trim());
     const on = new Set((card.labels || []).map((l) => (l.name || '').toLowerCase()));
-    const add = labelsOf(it).filter((n) => !on.has(n.toLowerCase()));
+    // A priority already on the card was set (or changed) on the board — the board wins.
+    // Only a card with no priority at all gets the backlog's.
+    const hasPriority = [...on].some(isPriority);
+    const add = labelsOf(it).filter((n) => !on.has(n.toLowerCase()) && !(hasPriority && isPriority(n)));
     if (!add.length) continue;
     if (dryRun) {
       console.log(`  would add [${add.join(', ')}] to: ${it.name}`);

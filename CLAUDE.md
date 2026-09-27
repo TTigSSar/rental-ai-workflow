@@ -50,6 +50,16 @@ docker compose -f rental-api/docker-compose.yml down -v   # teardown
 
 ## Engineering workflow (mandatory)
 
+**Rule 0 — structural decisions are load-bearing and human-owned.** Every structural decision gets recorded in `knowledge/decisions.md` as an ADR — architecture, data model and schema, API/contract shape, state machines, auth and privacy boundaries, cross-cutting display and formatting rules (currency, dates, units), build and delivery topology, and the choice of any library or external service. Recording is not optional and not "when applicable": an unrecorded decision is one the next person will re-litigate or silently contradict.
+
+Before starting work, read the ADRs covering the area you are about to touch. Then:
+
+- **Work that follows a recorded decision** proceeds normally.
+- **Work that would deviate from, contradict, supersede or quietly widen a recorded decision STOPS.** Bring it to Tigran with the full picture — which ADR, what it says today, what the new work needs, why the existing decision does not cover it, the options with their blast radius, and a recommendation. Change it only after he approves, then amend or supersede the ADR in the same change.
+- **Work in an area with no recorded decision** is itself a decision to make. Surface it the same way rather than picking silently, and write the ADR as part of the work.
+
+This applies to subagents too: a subagent that hits a structural question reports it back rather than resolving it. Never infer approval from a plan sign-off, an earlier session, a passing test suite, or another agent's report — only Tigran grants it, explicitly, for that specific decision.
+
 1. **Plan first**: non-trivial work starts in plan mode; the human approves the plan before any code.
 2. **Specialist subagents** (`.claude/agents/`): `backend-dev`, `frontend-dev`, `contract-guardian`, `verifier`, `platform-engineer`, `qa-engineer`. Give each a self-contained spec (files, constraints, definition of done). `platform-engineer` is the single owner of the production server, deploys, backups, and infra scripts — backend/frontend agents never touch the server, and it never edits business logic. `qa-engineer` owns durable regression protection: real-stack E2E/integration journeys, regressions for confirmed bugs, fixtures, and the stability of QA-owned suites; it never writes application code, and unit tests next to code stay with the implementers.
 3. **Any API/DTO change** → `contract-guardian` must sync `Rental-Ui/src/app/api/api-contract.ts` and feature models.
@@ -57,7 +67,7 @@ docker compose -f rental-api/docker-compose.yml down -v   # teardown
 5. `/code-review` on the branch diff before merge; human approves the merge. DB migrations always get human review of the generated migration.
 6. **Release & production deploy**: implementation (backend/frontend) → contract-guardian → verifier → reviewer (+ `/security-review` before production when warranted) → `platform-engineer` prepares the release (branch state, changelog, readiness, deployment plan) → **the human reviews and merges the PR into `main`** → platform-engineer deploys → runs `deploy/smoke.sh` → on failure executes or proposes rollback → updates infrastructure docs. A deploy is done only after the live smoke check passes. Never `docker compose down -v` in production.
 7. **Git delivery** (`ship-dev-pr` skill): all three repos commit on `dev`, push to `origin/dev`, and deliver via a pull request into remote `main`. Local `main` branches were deleted 2026-07-31 — never switch to or recreate one. Merging the PR is human-only.
-8. **Close-feature step**: update `knowledge/decisions.md` (ADR-XXX) and `knowledge/mistakes.md` (M-XXX) when applicable; write `knowledge/feature-notes/<date>-<slug>.md` only for non-trivial features. Every confirmed bug gets an explicit `qa-engineer` verdict before closing: `Regression test required` (with the minimal stable test) or `Regression test not justified` (one-line factual reason).
+8. **Close-feature step**: record every structural decision in `knowledge/decisions.md` (ADR-XXX, per Rule 0 — mandatory, not "when applicable") and update `knowledge/mistakes.md` (M-XXX) where a mistake was made; write `knowledge/feature-notes/<date>-<slug>.md` only for non-trivial features. Every confirmed bug gets an explicit `qa-engineer` verdict before closing: `Regression test required` (with the minimal stable test) or `Regression test not justified` (one-line factual reason).
 
 ## Knowledge base (`knowledge/`)
 
