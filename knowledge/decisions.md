@@ -62,6 +62,7 @@ Date: 2026-07-19 | Status: accepted
 **Known consequence:** the claim "Sonnet is sufficient for Rental-Ui work" is a **hypothesis, not yet validated on this codebase**. If UI tasks start costing extra iterations or drifting from `Rental-Ui/CLAUDE.md` conventions, revert `frontend-dev` to Opus — and then look for the saving in session shape instead (see below), not in model choice.
 **Rejected:** (a) leave everything on Opus — the workflow in `CLAUDE.md` §2 mandates subagents for all code, so ~100% of consumption flows through them; the model choice there *is* the cost model. (b) all-Sonnet including `platform-engineer` — saves little (it was ~2–3%) and spends the saving in exactly the place where a mistake is most expensive. (c) attack session length/context instead of models — real but secondary and behavioural, not configurable: the same panel showed 57% of weekly usage at >150k context and 56% from 8h+ sessions, addressed by `/clear` between unrelated tasks rather than by any file in this repo.
 **Note on the figures:** the usage panel states they are approximate, cover local sessions on this machine only, and are independent characteristics rather than a partition — treat them as direction, not accounting.
+**Amended 2026-10-07 (ADR-026, approved by Tigran):** the new read-only `reviewer` agent → `opus`. It runs rarely (contract/schema/multi-repo routes and security questions, not every change) and its job is authorization and ADR-conformance reasoning, where a miss ships to production. Every other assignment above is unchanged.
 
 ## ADR-007: Maps run on Leaflet + raster OpenStreetMap tiles, behind one `app-map` component
 Date: 2026-07-21 | Status: accepted (**for Phase 1; the trilingual-label requirement is knowingly unmet — see below**)
@@ -442,3 +443,45 @@ Date: 2026-10-06 | Status: accepted | Decided by: Tigran | Area: API/contract, i
 **Rejected.** (a) **Store a key plus parameters and translate in the UI** — always current-language and the obvious long-term shape, but it breaks the stated server-side-copy contract for one kind out of ten, needs schema plus client changes, and would leave the feed rendering two different ways. Revisit when all ten kinds are converted together. (b) **English only** — contradicts the design and the requirement.
 
 **Related:** ADR-024, ADR-013 (what a notification may disclose — the pickup body carries a district name, never coordinates or an address).
+
+---
+
+## ADR-026: The agent system — a fixed roster, least privilege enforced by the harness, one report contract, and commits owned by the orchestrator
+Date: 2026-10-07 | Status: accepted (Tigran, 2026-10-06)
+
+**Decision.**
+1. **Roster.** There are seven custom agents: `backend-dev`, `frontend-dev`, `contract-guardian`, `verifier`, `qa-engineer`, `platform-engineer` and `reviewer`. Read-only exploration and planning use the built-in `Explore` and `Plan` agents. There is no custom explorer, planner or security agent. `general-purpose` is not used for project work, because it carries Edit/Write and can spawn further agents.
+2. **Reviewer.** The reviewer runs read-only, in an independent context, over the actual cross-repo diff, checking it against the approved plan and the ADRs. It looks for scope creep and unintended changes, authorization and security defects, ADR conformance and regression risk. It runs on routes that touch the contract, the schema or more than one repo, and on security questions — not on every change. Its report starts with what it actually inspected (M-034, M-050).
+3. **Models.** ADR-006 stands, and the reviewer runs on `opus` (see the amendment there).
+4. **Least privilege is enforced by the harness, not by prose.**
+   - Every custom agent declares a `tools:` allowlist.
+   - No custom agent holds `Agent` (nested spawning) or any MCP tool. Only writers hold Edit/Write.
+   - `tools:` cannot narrow Bash, so the reviewer's Bash is restricted by a fail-closed hook in its frontmatter.
+   - Destructive operations are denied, and risky ones asked for, in the committed `.claude/settings.json`.
+   - `main` is protected on the server by GitHub rulesets.
+5. **Report contract.** Every custom agent's reply starts with `STATUS: DONE|BLOCKED|NEEDS_INPUT|FAILED|APPROVAL_REQUIRED` and always carries SUMMARY, FILES_MODIFIED, OBSTACLES and NEXT_STEP. Role sections extend it: the verifier's VERDICT, platform's Risk/Evidence and the QA report. A declared status is a signal only — the independent verifier decides whether work is done.
+6. **Routing.** Routing is a first-match rule set over facts about the task: does it write, which repos does it touch, does it change the contract or the schema, does it touch production. The rules live in `CLAUDE.md`. Writers run in parallel only when the `PARALLEL_WRITERS` conditions there hold.
+7. **Stopping and retrying.**
+   - A retry must name what changed since the last attempt.
+   - Two failed fixes of the same cause → `BLOCKED`.
+   - An environment failure → `BLOCKED` immediately, with no retry.
+   - A structural question → `NEEDS_INPUT` (Rule 0).
+8. **Commits.** Only the orchestrator commits, after reading the agent's diff, through `ship-dev-pr`. Agents never commit, stash, reset or push.
+9. **Recovery.** `/rewind` does not cover code edits made by subagents, so the recovery point is git. Before any writer runs, the plan records an execution baseline: each repo's HEAD, a clean tree, and the expected areas of change.
+10. **Trace privacy.** Persisted traces hold execution metadata only. They never hold prompts, assistant messages, command text, command output or reasoning.
+
+**Why.** All six agents inherited every tool. That included Edit/Write for a verifier whose whole value is "never fixes code", and `Agent` for all of them. Safety rested on prose. The workflow referred to a reviewer that did not exist, and the review skills scoped themselves to the outer repo, twice (M-034, M-050). Agents used four incompatible report formats. Broad allow rules (`ssh dorent@* *docker compose*`, `git push *`, `dotnet ef *`, `node -e`) left a production volume wipe, a push to `main` and a migration applied to the working dev database (M-051) each one auto-approved command away. Edits made by subagents are invisible to `/rewind`.
+
+**Rejected.**
+- (a) **A custom explorer or planner.** It would duplicate the built-ins, which already skip CLAUDE.md and cost less.
+- (b) **A dedicated security agent.** The reviewer's scope already covers it.
+- (c) **An 11-field report contract.** It is ceremony for small tasks; five fields carry the signal the orchestrator decides on.
+- (d) **Narrowing Bash with permission patterns for the verifier and the implementers.** The Claude Code docs call such patterns fragile, and those agents need dotnet, npm and docker. A `git status` diff before and after each read-only agent is used instead, which gives no false certainty.
+- (e) **A dedicated checkpoint subsystem.** The plan file, the git baseline and a commit after every step already cover it.
+- (f) **`permissionMode` in agent frontmatter.** It is ignored whenever the parent session runs in auto, acceptEdits or bypass mode.
+
+**Known consequences.**
+- Production deploy steps that recreate containers (`build`, `up -d`, `git pull` over ssh) now prompt.
+- The GitHub rulesets bind Tigran too: there are no direct pushes to `main` for anyone.
+- The agents and Tigran share one GitHub identity, so "only the human merges" rests on agents having no path to a merge: `gh` is absent, and credential access and the merge APIs are denied. GitHub itself does not enforce it. A separate machine account for agents would close this gap and is deferred.
+- `.codex/` and `AGENTS.md` mirror none of these gates — Codex sessions are outside this model.
