@@ -41,7 +41,9 @@ docker compose -f rental-api/docker-compose.yml down -v   # teardown
 
 ## Demo accounts (dev seed, password `Demo1234`)
 
-`admin@rental.local` (Admin) · `owner@rental.local` (owns seeded listings) · `renter@rental.local` (books/favorites) · `user2@rental.local` · `blocked@rental.local` (IsBlocked, for auth-rejection tests) · `anahit@toyrent.am`, `narek@toyrent.am`, `lilit@toyrent.am`, `davit@toyrent.am`, `mariam@toyrent.am` (owners backing the 50-listing toy-catalogue expansion, no bookings/reviews)
+`admin@rental.local` (Admin) · `owner@rental.local` (owns seeded listings, home in Kentron) · `renter@rental.local` (books/favorites) · `user2@rental.local` · `blocked@rental.local` (IsBlocked, for auth-rejection tests) · `anahit@toyrent.am`, `narek@toyrent.am`, `lilit@toyrent.am`, `davit@toyrent.am`, `mariam@toyrent.am` (owners backing the toy-catalogue expansion, no bookings/reviews) · `gohar@toyrent.am`, `karen@toyrent.am`, `armen@toyrent.am`, `seda@toyrent.am`, `vahe@toyrent.am`, `hasmik@toyrent.am` (home-point cohort)
+
+All 13 seeded owners have a home point, and together they cover all 12 Yerevan districts. **A home point outside Yerevan cannot be saved** — the district lookup is the validation authority, so there is no seeded Gyumri owner any more.
 
 ## Status machines (most common source of agent mistakes)
 
