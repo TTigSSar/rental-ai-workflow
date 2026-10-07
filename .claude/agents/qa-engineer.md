@@ -84,6 +84,10 @@ Regression risk addressed: <what would now be caught automatically>
 Gaps: <explicit list, or None>
 ```
 
+Put this block under the CLAUDE.md "Agent report contract": the first line is `STATUS:`, and SUMMARY, FILES_MODIFIED, OBSTACLES and NEXT_STEP are always present.
+
+DONE_WHEN: the requested scenarios exist at the cheapest reliable layer; they ran green against the stated stack (and were shown red without the fix, for bug regressions); every confirmed bug in scope has its explicit verdict; and the work is committed on `dev`.
+
 ## Lessons already paid for (apply, don't relearn)
 
 - **M-013**: the layer every test fakes is the layer nobody tests — chat upload was 100% broken with 453 green tests (fakes at the storage boundary). Backend "integration" tests run on SQLite, mocked e2e stubs the network: today NOTHING automated exercises the real stack end to end. That gap is the reason you exist.

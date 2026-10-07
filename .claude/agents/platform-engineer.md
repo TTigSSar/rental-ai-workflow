@@ -93,3 +93,6 @@ Level derivation: `HIGH` = rehearsal + smoke coverage + verified backup + known 
 
 - Report facts, not optimism: what changed, what was verified live (commands + observed output), what remains risky or manual.
 - When the task is done, include exact rollback steps for what you just changed.
+- Wrap every report in the CLAUDE.md "Agent report contract" (the first line is `STATUS:`). A gate that needs a human (HIGH/CRITICAL risk, or HIGH risk with Evidence < HIGH) is `STATUS: APPROVAL_REQUIRED` with the full plan.
+
+DONE_WHEN: for a deploy, the live `smoke.sh` passed and the `deploys.log` line is written; for any other change, it was verified live, the docs were updated in the same change, and the rollback steps are stated.

@@ -63,13 +63,50 @@ Before starting work, read the ADRs covering the area you are about to touch. Th
 This applies to subagents too: a subagent that hits a structural question reports it back rather than resolving it. Never infer approval from a plan sign-off, an earlier session, a passing test suite, or another agent's report — only Tigran grants it, explicitly, for that specific decision.
 
 1. **Plan first**: non-trivial work starts in plan mode; the human approves the plan before any code.
-2. **Specialist subagents** (`.claude/agents/`): `backend-dev`, `frontend-dev`, `contract-guardian`, `verifier`, `platform-engineer`, `qa-engineer`. Give each a self-contained spec (files, constraints, definition of done). `platform-engineer` is the single owner of the production server, deploys, backups, and infra scripts — backend/frontend agents never touch the server, and it never edits business logic. `qa-engineer` owns durable regression protection: real-stack E2E/integration journeys, regressions for confirmed bugs, fixtures, and the stability of QA-owned suites; it never writes application code, and unit tests next to code stay with the implementers.
+2. **Specialist subagents** (`.claude/agents/`, ADR-026): `backend-dev`, `frontend-dev`, `contract-guardian`, `verifier`, `reviewer`, `platform-engineer`, `qa-engineer`. Built-in `Explore`/`Plan` for read-only work; never `general-purpose` for project work. Route and hand off per **Delegation** below. `platform-engineer` is the single owner of the production server, deploys, backups, and infra scripts — backend/frontend agents never touch the server, and it never edits business logic. `qa-engineer` owns durable regression protection: real-stack E2E/integration journeys, regressions for confirmed bugs, fixtures, and the stability of QA-owned suites; it never writes application code, and unit tests next to code stay with the implementers.
 3. **Any API/DTO change** → `contract-guardian` must sync `Rental-Ui/src/app/api/api-contract.ts` and feature models.
 4. **Verification is two-tier**: fast (build + affected tests + live feature walk) after each change; full (all tests + e2e including the QA-owned suites for the affected areas + `/security-review`, a11y if UI changed) before merge.
-5. `/code-review` on the branch diff before merge; human approves the merge. DB migrations always get human review of the generated migration.
-6. **Release & production deploy**: implementation (backend/frontend) → contract-guardian → verifier → reviewer (+ `/security-review` before production when warranted) → `platform-engineer` prepares the release (branch state, changelog, readiness, deployment plan) → **the human reviews and merges the PR into `main`** → platform-engineer deploys → runs `deploy/smoke.sh` → on failure executes or proposes rollback → updates infrastructure docs. A deploy is done only after the live smoke check passes. Never `docker compose down -v` in production.
+5. **Review before merge**: the `reviewer` agent on routes 2 and 8 (below); `/code-review` and `/security-review` only when pointed at `rental-api` and `Rental-Ui` explicitly — they scope to the outer repo by default (M-034, M-050). Human approves the merge. DB migrations always get human review of the generated migration.
+6. **Release & production deploy**: implementation (backend/frontend) → contract-guardian → verifier → `reviewer` (+ `/security-review` before production when warranted) → `platform-engineer` prepares the release (branch state, changelog, readiness, deployment plan) → **the human reviews and merges the PR into `main`** → platform-engineer deploys → runs `deploy/smoke.sh` → on failure executes or proposes rollback → updates infrastructure docs. A deploy is done only after the live smoke check passes. Never `docker compose down -v` in production.
 7. **Git delivery** (`ship-dev-pr` skill): all three repos commit on `dev`, push to `origin/dev`, and deliver via a pull request into remote `main`. Local `main` branches were deleted 2026-07-31 — never switch to or recreate one. Merging the PR is human-only.
 8. **Close-feature step**: record every structural decision in `knowledge/decisions.md` (ADR-XXX, per Rule 0 — mandatory, not "when applicable") and update `knowledge/mistakes.md` (M-XXX) where a mistake was made; write `knowledge/feature-notes/<date>-<slug>.md` only for non-trivial features. Every confirmed bug gets an explicit `qa-engineer` verdict before closing: `Regression test required` (with the minimal stable test) or `Regression test not justified` (one-line factual reason).
+
+## Agent report contract (every custom agent, ADR-026)
+
+The reply's first line is exactly `STATUS: DONE | BLOCKED | NEEDS_INPUT | FAILED | APPROVAL_REQUIRED`, then:
+
+- `SUMMARY` (1–3 lines) · `FILES_MODIFIED` (list or `none`) · `OBSTACLES` (list or `None` — environment problems, failed commands, special flags, workarounds, assumptions, unexpected architecture) · `NEXT_STEP` (one line).
+- `CHECKS` — writers and verifier: each command run → pass/fail. A writer's DONE without CHECKS is not accepted.
+- `WHAT_IS_NEEDED` for BLOCKED/NEEDS_INPUT; `REASON / PROPOSED_ACTION / RISK / EXPECTED_RESULT` for APPROVAL_REQUIRED; `PLAN_DEVIATION` when the approved plan no longer holds.
+- Role sections extend this (verifier VERDICT, platform Risk/Evidence, QA report, reviewer severities). Omit fields that don't apply.
+
+**Stop and retry.** A retry must name what changed since the last attempt. Two failed fixes of the same cause → `BLOCKED`. An environment failure (DB down, port taken, tool or access missing) → `BLOCKED` at once, no retry. A re-run that turns green is not evidence. Stop when DONE_WHEN is met. A structural question → `NEEDS_INPUT` (Rule 0). Writers commit their own work on `dev` (only their paths); never push, stash or reset — the orchestrator reads the diff and pushes (ADR-026 §8, amended).
+
+## Delegation (orchestrator)
+
+**Facts first:** W = files change · R = repos touched ⊆ {outer, api, ui} · C = API contract changes (route, DTO field, auth, status codes) · S = schema changes (entity, EF config, migration) · P = production/infra · Q = security/authz/ADR-conformance question.
+
+**Route — first match wins:**
+
+| # | When | Route |
+|---|---|---|
+| 1 | P | `platform-engineer` (app code first via 6–8, then the release flow §6) |
+| 2 | ¬W ∧ Q | `reviewer` |
+| 3 | ¬W, ≤ ~5 reads | orchestrator directly |
+| 4 | ¬W | `Explore` (≤3 in parallel, disjoint questions) |
+| 5 | W ∧ R ⊆ {outer} | orchestrator directly (knowledge, agent config, tools, docs) |
+| 6 | W ∧ R = {ui} ∧ ¬C | `frontend-dev` → `verifier` (fast) |
+| 7 | W ∧ R = {api} ∧ ¬C ∧ ¬S | `backend-dev` → `verifier` (fast) |
+| 8 | W ∧ (C ∨ S ∨ R ⊇ {api, ui}) | plan gate + baseline → `backend-dev` → `contract-guardian` (if C) → `frontend-dev` (if ui) → `verifier` → `reviewer`. S ⇒ the migration is APPROVAL_REQUIRED before merge |
+
+**Overlays:** O1 a structural decision appears → stop, Rule 0. O2 confirmed bug → `qa-engineer` verdict before close. O3 before merge → verifier full tier (+ reviewer on route 8). O4 NEEDS_INPUT or PLAN_DEVIATION → stop downstream; re-approve if R, C, S or an ADR's scope grew.
+
+**PARALLEL_WRITERS** — `backend-dev ∥ frontend-dev` only if ALL hold, otherwise sequential:
+P1 the plan lists every changed route (verb, path, auth) and DTO field (name, type, nullability), or says "no contract change" · P2 backend ⊆ `rental-api/**`, frontend ⊆ `Rental-Ui/**`, and frontend-dev owns contract/model files for this run · P3 no migration is applied (`migrations add` is fine, `database update` is not) · P4 both hand-offs say `MODE: PARALLEL` — build + unit tests only; no `dotnet run`, `npm start`, `docker compose up`, Playwright, screenshots or e2e · P5 baseline recorded and both repos clean · P6 contract-guardian, verifier, qa-engineer and reviewer start only after BOTH return, and not at all if either is ≠ DONE. Post-check: each writer's FILES_MODIFIED stays in its repo.
+
+**Execution baseline** (written into the plan at approval, before any writer runs): `BASELINE: rental-api@<sha> clean · Rental-Ui@<sha> clean · outer@<sha> clean` · `EXPECTED: <path globs>` · `AGENTS: <list>` · `MODE: SEQUENTIAL|PARALLEL`. Subagent edits are invisible to `/rewind` — git is the recovery point. Every completed step ends in a commit; the orchestrator reads that diff before pushing (M-002). Snapshot `git status --porcelain` before and after every read-only agent; any difference is a violation.
+
+**Hand-off:** `TASK · MODE · SCOPE (repo, entry files) · CONTRACT (if C) · CONTEXT (only the relevant ADR/M excerpts — grep "^## ADR-|^## M-|Area:" — plus the knowledge/ paths) · CONSTRAINTS · OUT_OF_SCOPE · DONE_WHEN · PRIOR_RESULT (STATUS + FILES_MODIFIED + FINDINGS only)`. `Explore`/`Plan` don't load this file — put the expected report format in their prompt.
 
 ## Knowledge base (`knowledge/`)
 
