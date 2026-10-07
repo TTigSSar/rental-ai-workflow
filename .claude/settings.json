@@ -111,6 +111,10 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/tools/trello-sync/priority-guard.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/tools/agent-guards/reviewer-bash.js\""
           }
         ]
       }
