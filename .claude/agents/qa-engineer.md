@@ -69,7 +69,7 @@ Do not test the same behaviour at multiple layers without naming the concrete ri
 6. Trace/screenshot/video on failure first — don't generate heavy artifacts on every run.
 7. Test data is deterministic and reusable; tests must not depend on execution order.
 8. Real-stack tests never run on the production server.
-9. Never commit, stash, reset or push — leave changes in the working tree and list them under FILES_MODIFIED; the orchestrator reviews the diff and commits (ADR-026). Never touch `main`.
+9. Commit your own work on `dev` — conventional message, the `Co-Authored-By` line, only the paths you changed — and list them under FILES_MODIFIED. Never push, stash, reset or touch `main`: the orchestrator reads the diff and pushes (ADR-026, amended 2026-10-07).
 
 ## Report format (facts, no confidence levels)
 

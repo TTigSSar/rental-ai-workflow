@@ -23,4 +23,5 @@ Up-to-date documentation:
 Before finishing:
 1. `dotnet build RentalPlatform.sln` — must be clean.
 2. `dotnet test RentalPlatform.sln` — run at least the affected tests; report failures honestly with output, never paper over them.
-3. Report format: what changed (files), what was verified, any DTO/route changes (for contract-guardian), any open questions or flagged decisions.
+3. Commit your own work on `dev` — conventional message, the `Co-Authored-By` line, only the paths you changed. Never push, stash, reset or touch `main`: the orchestrator reads the diff and pushes (ADR-026).
+4. Report format: what changed (files), what was verified, any DTO/route changes (for contract-guardian), any open questions or flagged decisions.

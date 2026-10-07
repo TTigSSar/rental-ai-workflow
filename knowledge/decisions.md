@@ -446,7 +446,7 @@ Date: 2026-10-06 | Status: accepted | Decided by: Tigran | Area: API/contract, i
 
 ---
 
-## ADR-026: The agent system — a fixed roster, least privilege enforced by the harness, one report contract, and commits owned by the orchestrator
+## ADR-026: The agent system — a fixed roster, least privilege enforced by the harness, one report contract, and git delivery split between agent and orchestrator
 Date: 2026-10-07 | Status: accepted (Tigran, 2026-10-06)
 
 **Decision.**
@@ -466,7 +466,9 @@ Date: 2026-10-07 | Status: accepted (Tigran, 2026-10-06)
    - Two failed fixes of the same cause → `BLOCKED`.
    - An environment failure → `BLOCKED` immediately, with no retry.
    - A structural question → `NEEDS_INPUT` (Rule 0).
-8. **Commits.** Only the orchestrator commits, after reading the agent's diff, through `ship-dev-pr`. Agents never commit, stash, reset or push.
+8. **Commits and pushes are split.** Each agent commits its own work on `dev` — conventional message, the `Co-Authored-By` line, and only the paths it actually changed. No agent pushes, stashes, resets, or touches `main`. The orchestrator reads the diff and pushes, through `ship-dev-pr`.
+
+   **Amended 2026-10-07 by Tigran**, reversing this clause's original "only the orchestrator commits; agents never commit". Two reasons it changed: the agent that wrote the change is the only party that knows which paths are deliberate and what belongs in the message, and the orchestrator was reconstructing both from a diff it had not written — on the home-point release that reconstruction spanned 197 files across two repos. **The review gate does not move.** It sits at the push, which stays the orchestrator's and still requires reading the diff; an unpushed commit is local and reversible, so the irreversible step is still the one a human-owned path guards. `qa-engineer` and `platform-engineer` are included — the carve-out that excluded them is gone, and it was that carve-out which blocked the home-point release-prep doc commit mid-task.
 9. **Recovery.** `/rewind` does not cover code edits made by subagents, so the recovery point is git. Before any writer runs, the plan records an execution baseline: each repo's HEAD, a clean tree, and the expected areas of change.
 10. **Trace privacy.** Persisted traces hold execution metadata only. They never hold prompts, assistant messages, command text, command output or reasoning.
 

@@ -28,7 +28,7 @@ git -C Rental-Ui  remote set-url origin https://github.com/TTigSSar/Rental-Ui.gi
 2. **All work happens on `dev`.** This applies to all three repos, including the outer `rental-app` repo (the old "commit outer repo to main" exception is dead — it went away with the local `main` branches).
 3. **Merging into `main` is human-only**, and it happens through the GitHub PR UI. Never merge a PR yourself, never push to `main`.
 4. Commit immediately after each completed change — do not batch until session end. Nothing may be left uncommitted when the session wraps up.
-5. Delegated subagents leave changes uncommitted; the orchestrator commits.
+5. **Each agent commits its own work on `dev`; the orchestrator reads the diff and pushes** (ADR-026, amended 2026-10-07 — it previously said the opposite). Agents never push. If an agent left work uncommitted, commit it yourself rather than leaving it loose.
 
 ## The flow
 

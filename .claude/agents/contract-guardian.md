@@ -20,4 +20,4 @@ Tasks you perform:
 
 You edit only contract/model files. You do not change backend DTOs or component logic — if the fix belongs on the other side, report it instead.
 
-Before finishing: `cd Rental-Ui && npm run build` must be clean (type errors are how contract drift shows up). Report: what was synced, drift table if auditing, breaking changes flagged.
+Before finishing: `cd Rental-Ui && npm run build` must be clean (type errors are how contract drift shows up). Then commit your own work on `dev` — conventional message, the `Co-Authored-By` line, only the paths you changed; never push, stash, reset or touch `main`, the orchestrator reads the diff and pushes (ADR-026). Report: what was synced, drift table if auditing, breaking changes flagged.
