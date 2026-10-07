@@ -17,3 +17,6 @@
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Agent Monitor traces — metadata-only, machine-local (ADR-026 §10)
+tools/agent-monitor/traces/

@@ -15,7 +15,6 @@
       "PowerShell(ssh * *compose*rm *)",
       "PowerShell(ssh * *rm -rf*)",
       "PowerShell(ssh * *deploy/..*)",
-
       "Bash(git push *main*)",
       "Bash(git * push *main*)",
       "Bash(git push *--force*)",
@@ -38,7 +37,6 @@
       "PowerShell(git * push *--all*)",
       "PowerShell(git push *--delete*)",
       "PowerShell(git * push *--delete*)",
-
       "Bash(git credential*)",
       "Bash(git * credential*)",
       "PowerShell(git credential*)",
@@ -54,7 +52,6 @@
       "PowerShell(Invoke-RestMethod *api.github.com*/git/refs*)",
       "PowerShell(Invoke-WebRequest *api.github.com*/git/refs*)",
       "mcp__github__merge_pull_request",
-
       "Bash(dotnet ef database drop*)",
       "Bash(dotnet ef * --connection*)",
       "PowerShell(dotnet ef database drop*)",
@@ -77,12 +74,10 @@
       "PowerShell(ssh * *git reset*)",
       "PowerShell(ssh * *git checkout*)",
       "PowerShell(ssh * *sqlcmd*)",
-
       "Bash(dotnet ef database update*)",
       "Bash(dotnet ef migrations remove*)",
       "PowerShell(dotnet ef database update*)",
       "PowerShell(dotnet ef migrations remove*)",
-
       "Bash(git restore *)",
       "Bash(git * restore *)",
       "Bash(git checkout -- *)",
@@ -117,6 +112,15 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/tools/agent-guards/reviewer-bash.js\""
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/tools/agent-monitor/emit.js\""
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -126,6 +130,48 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/tools/trello-sync/priority-guard.js\""
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/tools/agent-monitor/emit.js\""
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/tools/agent-monitor/emit.js\""
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/tools/agent-monitor/emit.js\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/tools/agent-monitor/emit.js\""
           }
         ]
       }
