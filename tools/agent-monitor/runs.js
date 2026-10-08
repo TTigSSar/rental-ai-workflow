@@ -140,10 +140,16 @@ function createAggregator(opts) {
     return null;
   }
 
+  // Agents the report contract obliges to list CHECKS (writers + verifier). Read-only agents
+  // (Explore, Plan, reviewer) legitimately hit failed reads/greps and report no CHECKS.
+  const CHECKS_REQUIRED = new Set(['backend-dev', 'frontend-dev', 'contract-guardian', 'qa-engineer', 'platform-engineer', 'verifier']);
+
   function discrepancy(r) {
     if (r.status_declared !== 'DONE') return null;
     if (r.last_call_failed) return 'declared_done_last_call_failed';
-    if (r.failures > 0 && !r.has_checks) return 'declared_done_failures_without_checks';
+    if (r.failures > 0 && !r.has_checks && CHECKS_REQUIRED.has(r.agent_type)) {
+      return 'declared_done_failures_without_checks';
+    }
     return null;
   }
 
