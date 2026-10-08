@@ -487,3 +487,29 @@ Date: 2026-10-07 | Status: accepted (Tigran, 2026-10-06)
 - The GitHub rulesets bind Tigran too: there are no direct pushes to `main` for anyone.
 - The agents and Tigran share one GitHub identity, so "only the human merges" rests on agents having no path to a merge: `gh` is absent, and credential access and the merge APIs are denied. GitHub itself does not enforce it. A separate machine account for agents would close this gap and is deferred.
 - `.codex/` and `AGENTS.md` mirror none of these gates — Codex sessions are outside this model.
+
+## ADR-027: The API learns the client IP from Cloudflare's `CF-Connecting-IP`, relayed by nginx as `X-Forwarded-For` and trusted only from a pinned compose subnet
+Date: 2026-10-08 | Status: accepted | Area: production topology, rate limiting, auth surface | Email-verification plan, Phase 0 (D4/R6)
+
+**Context:** every rate-limit policy partitions on `HttpContext.Connection.RemoteIpAddress` (`RateLimiterExtensions.ResolveClientKey`, plus `ResolveUserKey`'s IP fallback). A read-only production investigation (platform-engineer, 2026-10-08, prod at rental-api `3552cdb`) proved that **in production that address is the ui/nginx container for every public request** (`::ffff:172.18.0.3`):
+- traffic path: Cloudflare edge → cloudflared (172.18.0.4) → nginx in `ui` (172.18.0.3) → Kestrel in `api`;
+- nginx forwards only `X-Real-IP`, which ASP.NET Core never reads; it sets no `X-Forwarded-For`;
+- `ForwardedHeaders:Enabled` is `false` in the shipped `appsettings.json`, and no `ForwardedHeaders__*` variable is set, so `UseForwardedHeaders()` does nothing.
+
+So every "per-IP" limit — `auth` (5/min), `password-change`, `booking-create`, `image-upload`, `district-lookup` — was **one global bucket shared by all users**. One abuser could lock everyone out of login and registration. That weakened the only mitigation ADR-020 relies on, and it would have made the email-verification rate limits meaningless. The real client IP does reach nginx: Cloudflare's single-hop `X-Forwarded-For` shows up in the nginx access log. The fix therefore needs no Cloudflare or tunnel change.
+
+**Decision:**
+1. **Header source: `CF-Connecting-IP`.** nginx sets `proxy_set_header X-Forwarded-For $http_cf_connecting_ip;` on `/api/` and `/hubs/`. It **overwrites** the header and never appends (`$proxy_add_x_forwarded_for` is forbidden), so whatever `X-Forwarded-For` a client sends never reaches the API. Cloudflare sets `CF-Connecting-IP` itself and overwrites any client-supplied value. The only ingress is the tunnel: ports are bound to 127.0.0.1 and ufw allows only SSH (ADR-003). So a remote client cannot choose its partition. If the header is absent (a request from the host itself through `127.0.0.1:4200`), nginx sends no `X-Forwarded-For` and the API falls back to the nginx address. That fallback is the old behaviour, never a spoofable one.
+2. **API trust boundary.** `ForwardedHeaders` is enabled in production with `XForwardedFor` only and `ForwardLimit = 1`. `KnownNetworks` is the stack's compose network, whose subnet is **pinned explicitly** in `docker-compose.production.yml`. Today Docker assigns it (`172.18.0.0/16`), and container IPs change on recreate, so a `KnownProxies` value with a single address would rot. Kestrel listens dual-stack, so the middleware sees IPv4-mapped addresses (`::ffff:a.b.c.d`). A test must prove the trusted network still matches them.
+3. **Configuration lives literally in the compose file**, not in `.env`: `ForwardedHeaders__Enabled: "true"` and `ForwardedHeaders__KnownNetworks__0: <pinned subnet>`. The subnet is defined in the same file, so the two cannot drift apart, and no empty `.env` value can reach `GetValue<bool>` (M-016). Separately, `ForwardedHeadersExtensions` stops using `GetValue("Enabled", false)`, which throws on a present-but-empty value, and parses `Enabled` and `ForwardLimit` tolerantly (backlog card "Harden dormant GetValue<bool> trap").
+4. **Out of scope:** `X-Forwarded-Proto` is not forwarded. HTTPS termination stays at Cloudflare and scheme handling stays as it is. Rate-limit numbers do not change. They were sized as per-IP limits and become per-IP for the first time.
+
+**Accepted residual risk:** every container on the pinned subnet is trusted to set `X-Forwarded-For`, and so is the docker gateway, which is how the host's own loopback calls arrive. All of those are ours, and reaching them requires SSH to the server. Narrowing trust to nginx alone would need a pinned container IP, which buys nothing against an attacker who already has the host.
+
+**Rejected:**
+- (a) **Relaying Cloudflare's `X-Forwarded-For` instead of `CF-Connecting-IP`.** It is proven present, while `CF-Connecting-IP` is documented but not yet observed in our logs. But a client-supplied value survives in it (Cloudflare appends), so it is safe only as long as `ForwardLimit = 1` holds. A single overwritten value has no such dependency. The deploy smoke must confirm the header arrives; if it does not, this ADR gets amended instead of silently keeping the global bucket.
+- (b) **nginx `real_ip` module (`set_real_ip_from` + `real_ip_header CF-Connecting-IP`).** It fixes nginx's view, not the API's; the API would still need a header.
+- (c) **Reading `X-Real-IP` in a custom partition resolver.** That would be a hand-rolled trust check in place of the framework's tested middleware, and every other consumer of `RemoteIpAddress` would stay wrong.
+- (d) **Trusting all networks (`KnownNetworks` cleared to "any").** Any client able to reach Kestrel would choose its own IP.
+
+**Related:** ADR-003 (tunnel only), ADR-020 (public production, the rate limit is the mitigation), ADR-021 §4 (separate rate-limit buckets), M-016, M-044 (real-stack e2e has two buckets, direct and via nginx — unchanged locally, because there is no cloudflared and so no `CF-Connecting-IP`).
