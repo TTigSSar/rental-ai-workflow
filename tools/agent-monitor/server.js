@@ -12,17 +12,53 @@
  */
 'use strict';
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { createAggregator } = require('./runs');
 
 const PORT = Number(process.env.AGENT_MONITOR_PORT || 4599);
-const RING = [];          // recent events, newest last
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+const PERSIST = process.env.AGENT_MONITOR_PERSIST !== '0';
+const RETENTION_DAYS = Math.max(1, Number(process.env.AGENT_MONITOR_RETENTION_DAYS || 30));
+const TRACE_DIR = path.join(__dirname, 'traces');
+const RING = [];          // recent raw events, newest last — IN MEMORY ONLY, never written to disk
 const RING_MAX = 500;
 const clients = new Set(); // SSE responses
+const agg = createAggregator({ projectRoot: PROJECT_ROOT });
 
 function broadcast(evt) {
   const line = `data: ${JSON.stringify(evt)}\n\n`;
   for (const res of clients) {
     try { res.write(line); } catch { /* client gone; cleaned up on close */ }
   }
+}
+
+function broadcastRuns() {
+  broadcast({ type: 'runs', runs: agg.snapshot() });
+}
+
+// ---- persistence: one metadata-only JSONL line per finished subagent run -------
+// The record comes from runs.js toRecord() (whitelisted fields) — never a raw payload.
+function persist(record) {
+  if (!PERSIST) return;
+  try {
+    fs.mkdirSync(TRACE_DIR, { recursive: true });
+    const day = record.ended_at ? record.ended_at.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    fs.appendFileSync(path.join(TRACE_DIR, day + '.jsonl'), JSON.stringify(record) + '\n');
+  } catch (e) {
+    console.error('  trace write failed:', e.message);
+  }
+}
+
+function pruneTraces() {
+  if (!PERSIST) return;
+  try {
+    const cutoff = Date.now() - RETENTION_DAYS * 86400000;
+    for (const f of fs.readdirSync(TRACE_DIR)) {
+      const m = f.match(/^(\d{4}-\d{2}-\d{2})\.jsonl$/);
+      if (m && Date.parse(m[1] + 'T23:59:59Z') < cutoff) fs.unlinkSync(path.join(TRACE_DIR, f));
+    }
+  } catch { /* no traces yet */ }
 }
 
 const server = http.createServer((req, res) => {
@@ -37,6 +73,10 @@ const server = http.createServer((req, res) => {
       RING.push(evt);
       if (RING.length > RING_MAX) RING.shift();
       broadcast(evt);
+      let record = null;
+      try { record = agg.ingest(raw, evt.receivedAt); } catch (e) { console.error('  aggregate failed:', e.message); }
+      if (record) persist(record);
+      if (raw && (raw.agent_id || raw.tool_name === 'Agent')) broadcastRuns();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end('{}'); // hooks read stdout as JSON on exit 0; empty object = no decision
     });
@@ -46,7 +86,9 @@ const server = http.createServer((req, res) => {
   // ---- clear the panel --------------------------------------------------------
   if (req.method === 'POST' && req.url === '/clear') {
     RING.length = 0;
+    agg.clear(); // the live view only — persisted traces are kept
     broadcast({ seq: 0, receivedAt: Date.now(), payload: { hook_event_name: 'PanelCleared' } });
+    broadcastRuns();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end('{}');
     return;
@@ -61,9 +103,17 @@ const server = http.createServer((req, res) => {
     });
     res.write('retry: 2000\n\n');
     for (const evt of RING) res.write(`data: ${JSON.stringify(evt)}\n\n`); // replay buffer
+    res.write(`data: ${JSON.stringify({ type: 'runs', runs: agg.snapshot() })}\n\n`);
     const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
     clients.add(res);
     req.on('close', () => { clearInterval(ping); clients.delete(res); });
+    return;
+  }
+
+  // ---- run snapshot (JSON) ----------------------------------------------------
+  if (req.method === 'GET' && req.url === '/runs') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(agg.snapshot()));
     return;
   }
 
@@ -77,8 +127,12 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end('not found');
 });
 
+pruneTraces();
 server.listen(PORT, () => {
   console.log(`\n  Agent Monitor  →  http://localhost:${PORT}`);
+  console.log(PERSIST
+    ? `  Traces (metadata only) → ${TRACE_DIR}  (retention ${RETENTION_DAYS}d; AGENT_MONITOR_PERSIST=0 disables)`
+    : '  Trace persistence disabled (AGENT_MONITOR_PERSIST=0)');
   console.log(`  POST hook events to http://localhost:${PORT}/hook`);
   console.log(`  Waiting for Claude Code hooks…\n`);
 });
@@ -161,6 +215,11 @@ const DASHBOARD = /* html */ `<!doctype html><html lang="en"><head>
   .gnode.orch .gn-name{color:var(--agent)}
   .gn-task{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.35}
   .gn-dur{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:6px;font-variant-numeric:tabular-nums}
+  .gn-meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px}
+  .gn-meta .failc{color:var(--fail);font-weight:600}
+  .gn-disc{font-size:11.5px;color:var(--fail);font-weight:600;margin-top:4px}
+  .gn-next{font-size:11.5px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
+  .gnode.disc{border-color:var(--fail)}
   .branches{position:relative;margin:4px 0 0 22px;padding-left:24px;border-left:2px solid var(--border)}
   .branch{position:relative;margin-top:12px}
   .branch::before{content:"";position:absolute;left:-24px;top:20px;width:24px;height:2px;background:var(--border)}
@@ -249,62 +308,39 @@ const DASHBOARD = /* html */ `<!doctype html><html lang="en"><head>
     return'';
   }
 
-  // ---- PURE FOLD over the full event list -------------------------------------
-  // Rebuilds identical state on every render, so a replayed ring (page reload OR
-  // SSE reconnect) reconstructs the same graph. Idempotent because evtList is
-  // deduped by seq before we ever get here.
+  // ---- STATE ---------------------------------------------------------------------
+  // Agent nodes come from the SERVER's run snapshot (runs.js), keyed by agent_id —
+  // exact even for parallel agents. The event list only feeds the orchestrator's
+  // "latest action" and the activity log.
+  var runsSnap=[];
   function computeState(){
-    var orch={name:'Orchestrator'};
-    var nodes=[];              // agent nodes, in creation order
-    var byKey=Object.create(null); // "name\\0task" -> current node for that key
-    var runningQ=[];           // ids of still-running nodes, oldest first (FIFO)
-    var latest=null;           // most recent non-Agent tool call overall
-    var nEvents=0,nDeleg=0;
-
-    function drop(id){var i=runningQ.indexOf(id);if(i>=0)runningQ.splice(i,1);}
-    function nodeById(id){for(var i=0;i<nodes.length;i++)if(nodes[i].id===id)return nodes[i];return null;}
-
-    for(var e=0;e<evtList.length;e++){
-      var evt=evtList[e]||{}, p=evt.payload||{}, at=evt.receivedAt||0;
-      nEvents++;
-      var ev=(p.hook_event_name||'').toLowerCase();
-      var tool=p.tool_name||p.agent_type||'';
-      var isAgent=/^(agent|task)$/i.test(tool);
-
-      if(ev==='pretooluse'&&isAgent){
-        // START of a delegation.
-        var ti=p.tool_input||{};
-        var name=ti.subagent_type||ti.agent_type||'subagent';
-        var task=ti.description||'(no description)';
-        var key=name+'\\u0000'+task;
-        var prior=byKey[key];
-        if(prior&&prior.state==='running'){prior.state='done';prior.endedAt=at;drop(prior.id);}
-        var node={id:'a'+nodes.length,name:name,task:task,prompt:ti.prompt||'',
-          startedAt:at,endedAt:null,lastActionAt:at,lastAction:null,state:'running'};
-        nodes.push(node);byKey[key]=node;runningQ.push(node.id);nDeleg++;
-        continue;
-      }
-      if(ev==='subagentstop'){
-        // HEURISTIC: SubagentStop carries no subagent_type/description, so it cannot
-        // be name-matched. We mark the OLDEST still-running node done (FIFO), which is
-        // correct for the usual sequential case but imperfect for parallel background
-        // agents (it may attribute a stop to the wrong one).
-        var id=runningQ.shift();
-        if(id){var n=nodeById(id);if(n){n.state=(p.error||/error|fail/i.test(String(p.stop_reason||'')))?'failed':'done';n.endedAt=at;}}
-        continue;
-      }
-      // PostToolUse(Agent) is NOT a finish signal (fires at launch for background
-      // agents) — so it is intentionally ignored here.
-      if((ev==='pretooluse'||ev==='posttooluse')&&tool&&!isAgent){
-        latest={tool:tool,summary:summarize(p),at:at};
-        // Inner sub-agent tool calls arrive WITHOUT agent identity. Only when exactly
-        // one agent is running can we honestly attribute the action to it.
-        var run=nodes.filter(function(x){return x.state==='running';});
-        if(run.length===1){run[0].lastActionAt=at;run[0].lastAction=latest;}
+    var latest=null,nEvents=evtList.length;
+    for(var e=evtList.length-1;e>=0;e--){
+      var p=(evtList[e]||{}).payload||{},ev=(p.hook_event_name||'').toLowerCase();
+      if(!p.agent_id&&(ev==='pretooluse'||ev==='posttooluse')&&p.tool_name&&!/^(agent|task)$/i.test(p.tool_name)){
+        latest={tool:p.tool_name,summary:summarize(p),at:evtList[e].receivedAt};break;
       }
     }
+    var nodes=runsSnap.map(function(r){
+      var st=r.state==='running'?'running':(r.status_declared==='DONE'||r.status_declared==='MISSING'?'done':'failed');
+      return{id:r.run_id,parent:r.parent_id,name:r.agent_type||'subagent',task:r.task||'(task not linked yet)',
+        startedAt:Date.parse(r.started_at),endedAt:r.ended_at?Date.parse(r.ended_at):null,state:st,
+        declared:r.status_declared,obs:r.observed||{},disc:r.discrepancy,lastTool:r.last_tool,
+        nIn:(r.files_inspected||[]).length,nMod:(r.files_modified||[]).length,next:r.next_step};
+    });
     var running=nodes.filter(function(x){return x.state==='running';});
-    return{orch:orch,nodes:nodes,running:running,latest:latest,nEvents:nEvents,nDeleg:nDeleg};
+    return{nodes:nodes,running:running,latest:latest,nEvents:nEvents,nDeleg:nodes.length};
+  }
+  function metaLine(n){
+    var bits=[];
+    if(n.declared&&n.state!=='running')bits.push('declared '+n.declared);
+    bits.push(n.obs.tool_calls+' calls');
+    if(n.obs.failures)bits.push('<span class="failc">'+n.obs.failures+' failed</span>');
+    if(n.nIn)bits.push(n.nIn+' read');
+    if(n.nMod)bits.push(n.nMod+' modified');
+    return'<div class="gn-meta">'+bits.join(' · ')+'</div>'+
+      (n.disc?'<div class="gn-disc">⚠ '+escapeHtml(n.disc.replace(/_/g,' '))+'</div>':'')+
+      (n.next&&n.state!=='running'?'<div class="gn-next">next: '+escapeHtml(n.next)+'</div>':'');
   }
 
   // ---- rendering --------------------------------------------------------------
@@ -336,14 +372,12 @@ const DASHBOARD = /* html */ `<!doctype html><html lang="en"><head>
     if(st.running.length){
       for(var i=0;i<st.running.length;i++){
         var n=st.running[i];
-        // Attribute the global latest action only when exactly one agent runs;
-        // otherwise fall back to whatever was attributed while this node was sole runner.
-        var act=(st.running.length===1)?st.latest:n.lastAction;
         html+='<div class="nowcard running">'+
           '<div class="nc-top"><span class="agent-name">'+escapeHtml(n.name)+'</span>'+badge('running')+'</div>'+
           '<div class="nc-task">'+escapeHtml(n.task)+'</div>'+
           '<div class="nc-timer">'+timerSpan(n,now)+'<span class="u">elapsed</span></div>'+
-          actionLine(act)+
+          (n.lastTool?actionLine({tool:n.lastTool,summary:''}):'')+
+          metaLine(n)+
           '</div>';
       }
     }else{
@@ -356,13 +390,7 @@ const DASHBOARD = /* html */ `<!doctype html><html lang="en"><head>
     }
     host.innerHTML=html;
 
-    var note=$('now-note');
-    if(st.running.length>1)
-      note.textContent='Multiple agents running. Inner tool calls arrive without agent identity in the hook stream, so the latest action is shown as shared rather than pinned to one agent.';
-    else if(st.running.length===1)
-      note.textContent='One agent running: the latest tool activity is attributed to it (inner sub-agent calls are otherwise not per-agent-attributable in the hook stream).';
-    else
-      note.textContent='Inner sub-agent tool calls are not per-agent-attributable in the hook stream; the Orchestrator card shows the latest tool activity overall.';
+    $('now-note').textContent='Each agent is tracked by its agent_id, so parallel agents are attributed exactly. "declared" is what the agent reported; calls and failures are what the hooks observed — a mismatch is flagged ⚠.';
   }
 
   function renderGraph(st){
@@ -376,16 +404,19 @@ const DASHBOARD = /* html */ `<!doctype html><html lang="en"><head>
     if(!st.nodes.length){
       html+='<div class="branches"><div class="branch"><div class="gn-task" style="margin:6px 0">No delegations yet.</div></div></div>';
     }else{
-      html+='<div class="branches">';
-      for(var i=0;i<st.nodes.length;i++){
-        var n=st.nodes[i];
-        html+='<div class="branch"><div class="gnode agent state-'+n.state+'">'+
+      // Tree: children of the orchestrator root first; nested runs (parent = another agent) under their parent.
+      var ids=Object.create(null);for(var k=0;k<st.nodes.length;k++)ids[st.nodes[k].id]=true;
+      function nodeHtml(n){
+        var kids=st.nodes.filter(function(x){return x.parent===n.id;});
+        return'<div class="branch"><div class="gnode agent state-'+n.state+(n.disc?' disc':'')+'">'+
           '<div class="gn-top"><span class="gn-name">'+escapeHtml(n.name)+'</span>'+badge(n.state)+'</div>'+
           '<div class="gn-task">'+escapeHtml(n.task)+'</div>'+
           '<div class="gn-dur">'+timerSpan(n,now)+(n.state==='running'?' · elapsed':' · total')+'</div>'+
-          '</div></div>';
+          metaLine(n)+'</div>'+
+          (kids.length?'<div class="branches">'+kids.map(nodeHtml).join('')+'</div>':'')+
+          '</div>';
       }
-      html+='</div>';
+      html+='<div class="branches">'+st.nodes.filter(function(x){return!ids[x.parent];}).map(nodeHtml).join('')+'</div>';
     }
     g.innerHTML=html;
   }
@@ -433,7 +464,8 @@ const DASHBOARD = /* html */ `<!doctype html><html lang="en"><head>
     var es=new EventSource('/events');
     es.onopen=function(){dot.className='dot on';};
     es.onerror=function(){dot.className='dot off';};
-    es.onmessage=function(e){try{onEvent(JSON.parse(e.data));}catch(err){}};
+    es.onmessage=function(e){try{var d=JSON.parse(e.data);
+      if(d&&d.type==='runs'){runsSnap=d.runs||[];renderAll();}else onEvent(d);}catch(err){}};
   }
   renderAll();  // paint the empty Orchestrator state immediately
   connect();

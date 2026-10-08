@@ -456,7 +456,7 @@ Date: 2026-10-07 | Status: accepted (Tigran, 2026-10-06)
 4. **Least privilege is enforced by the harness, not by prose.**
    - Every custom agent declares a `tools:` allowlist.
    - No custom agent holds `Agent` (nested spawning) or any MCP tool. Only writers hold Edit/Write.
-   - `tools:` cannot narrow Bash, so the reviewer's Bash is restricted by a fail-closed hook in its frontmatter.
+   - `tools:` cannot narrow Bash, so the reviewer's Bash is restricted by a fail-closed PreToolUse hook in the project `.claude/settings.json` (`tools/agent-guards/reviewer-bash.js`), scoped to calls whose `agent_type` is `reviewer`. A hook in the agent's own frontmatter was tried first and was never invoked (M-054).
    - Destructive operations are denied, and risky ones asked for, in the committed `.claude/settings.json`.
    - `main` is protected on the server by GitHub rulesets.
 5. **Report contract.** Every custom agent's reply starts with `STATUS: DONE|BLOCKED|NEEDS_INPUT|FAILED|APPROVAL_REQUIRED` and always carries SUMMARY, FILES_MODIFIED, OBSTACLES and NEXT_STEP. Role sections extend it: the verifier's VERDICT, platform's Risk/Evidence and the QA report. A declared status is a signal only — the independent verifier decides whether work is done.

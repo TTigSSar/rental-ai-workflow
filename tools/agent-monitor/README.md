@@ -6,11 +6,11 @@ sub-agent lifecycle) to a tiny Node server; the browser streams them live over S
 ```
 tools/agent-monitor/
 ├── server.js   # the server + the dashboard (pure Node built-ins, no npm install)
+├── runs.js     # folds hook payloads into one record per subagent run, keyed by agent_id
 ├── emit.js     # the command each hook runs: reads stdin JSON → POSTs to the server
+├── traces/     # metadata-only JSONL, one line per finished subagent run (gitignored)
 └── README.md
 ```
-
-Verified working on this machine (Node v26): emit → server → SSE replay all pass.
 
 ## 1. Run the server
 
@@ -19,36 +19,55 @@ node tools/agent-monitor/server.js
 # → http://localhost:4599   (override with AGENT_MONITOR_PORT)
 ```
 
-Open **http://localhost:4599** in a browser. It shows "connecting…" until hooks fire.
+Open **http://localhost:4599**. `GET /runs` returns the current run snapshot as JSON; `POST /clear`
+resets the live view (persisted traces are kept).
 
-## 2. Wire the hooks (one-time)
+## 2. Hooks
 
-Add this to **`.claude/settings.json`** (shared) or **`.claude/settings.local.json`**
-(machine-local, not committed). If a `hooks` key already exists, merge into it.
+Already wired in the committed **`.claude/settings.json`** (ADR-026) for `PreToolUse`, `PostToolUse`,
+`PostToolUseFailure`, `SubagentStart` and `SubagentStop`, all with `matcher: ""` and the command
+`node "$CLAUDE_PROJECT_DIR/tools/agent-monitor/emit.js"`. Settings changes take effect in the running
+session; a new **agent definition** needs a session restart.
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      { "matcher": "", "hooks": [ { "type": "command", "command": "node c:/Users/tigra/Projects/rental/rental-app/tools/agent-monitor/emit.js" } ] }
-    ],
-    "PostToolUse": [
-      { "matcher": "", "hooks": [ { "type": "command", "command": "node c:/Users/tigra/Projects/rental/rental-app/tools/agent-monitor/emit.js" } ] }
-    ],
-    "SubagentStop": [
-      { "matcher": "", "hooks": [ { "type": "command", "command": "node c:/Users/tigra/Projects/rental/rental-app/tools/agent-monitor/emit.js" } ] }
-    ]
-  }
-}
-```
+## 3. How a run is tracked (verified 2026-10-07, Claude Code 2.1.273)
 
-- `"matcher": ""` catches **all** tools. To watch only agent orchestration, narrow to
-  `"matcher": "Task"`. To reduce noise, use `"Task|Bash|Edit|Write"`.
-- Forward slashes work in the path on Windows. No spaces here, so no quoting needed.
-- Restart / re-open the Claude Code session after editing settings so hooks load.
+| Signal | Source |
+|---|---|
+| run starts | `SubagentStart` → `agent_id`, `agent_type` |
+| tools, files read/modified | `PreToolUse` inside the subagent carries `agent_id` (Read/Glob/Grep → inspected; Edit/Write → modified) |
+| observed failures | `PostToolUseFailure` — fires for Bash exit ≠ 0 too |
+| declared STATUS, NEXT_STEP, CHECKS/OBSTACLES present | the report the agent hands back: `PreToolUse` of `SubagentHandback`, `tool_input.message` |
+| task label and parent | `PostToolUse` of `Agent` → `tool_response.agentId` + `description`; a call made inside a subagent sets that subagent as the parent |
+| run ends | `SubagentStop` → the record is written |
 
-Then run any Claude Code task — every tool call and sub-agent event appears live, with
-the `Task` (sub-agent) rows highlighted and an **active-subagents** counter.
+`SubagentStop` does **not** carry `last_assistant_message` in this version, despite the docs. Parallel
+agents are attributed exactly (distinct `agent_id`s); there is no FIFO guessing any more.
+
+**Declared vs observed.** `status_declared` is what the agent said; `observed` is what the hooks saw.
+`discrepancy` is set when an agent declares DONE while its last call failed, or after failures with no
+CHECKS line. It is a signal for the orchestrator, not a verdict — the verifier decides whether work is done.
+
+**Known blind spots.** Files read or written through Bash (`cat`, `sed -i`, `>`) do not appear in
+`files_inspected` / `files_modified`. If the server is not running, nothing is recorded.
+
+## 4. Persisted traces — privacy boundary (ADR-026 §10)
+
+`traces/YYYY-MM-DD.jsonl`, one line per finished subagent run, built from a **whitelist** in
+`runs.js` `toRecord()` — never from a raw payload:
+
+`v, run_id, parent_id, session_id, agent_id, agent_type, task (≤80 chars), started_at, ended_at,
+duration_ms, status_declared, observed{tool_calls, failures, failed_tools, last_call_failed},
+discrepancy, files_inspected[], files_modified[] (project-relative, ≤100, outside → "<outside-project>"),
+files_truncated, tools_used{}, has_checks, has_obstacles, next_step (≤160 chars)`
+
+**Never stored:** prompts, assistant messages, command text, command output, error text, model
+reasoning. `task` and `next_step` matching token/secret/password/api-key/bearer/connection-string
+patterns are replaced by `[redacted]`. The raw event ring (live log) stays in memory only.
+
+| Env var | Default | |
+|---|---|---|
+| `AGENT_MONITOR_PERSIST` | on | `0` disables writing traces |
+| `AGENT_MONITOR_RETENTION_DAYS` | 30 | older files are deleted at server start |
 
 ## Safety
 
@@ -56,9 +75,6 @@ the `Task` (sub-agent) rows highlighted and an **active-subagents** counter.
   with `{}` — if the server is down or slow it silently no-ops and never blocks or delays
   a Claude Code session.
 - Everything is **local** (localhost only); no data leaves the machine.
-- The dashboard renders the **raw** hook payload defensively (it keys only on the stable
-  fields `hook_event_name` / `tool_name` / `session_id` and shows whatever else is
-  present), so it keeps working even if payload field names differ slightly by version.
 
 ## When you want production-grade observability instead
 
