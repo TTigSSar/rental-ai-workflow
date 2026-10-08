@@ -44,8 +44,8 @@ session; a new **agent definition** needs a session restart.
 agents are attributed exactly (distinct `agent_id`s); there is no FIFO guessing any more.
 
 **Declared vs observed.** `status_declared` is what the agent said; `observed` is what the hooks saw.
-`discrepancy` is set when an agent declares DONE while its last call failed, or after failures with no
-CHECKS line. It is a signal for the orchestrator, not a verdict — the verifier decides whether work is done.
+`discrepancy` is set when an agent declares DONE while its last call failed, or — for agents the contract obliges to list CHECKS
+(writers and verifier) — after failures with no CHECKS line. It is a signal for the orchestrator, not a verdict — the verifier decides whether work is done.
 
 **Known blind spots.** Files read or written through Bash (`cat`, `sed -i`, `>`) do not appear in
 `files_inspected` / `files_modified`. If the server is not running, nothing is recorded.
