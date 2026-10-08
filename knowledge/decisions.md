@@ -513,3 +513,9 @@ So every "per-IP" limit — `auth` (5/min), `password-change`, `booking-create`,
 - (d) **Trusting all networks (`KnownNetworks` cleared to "any").** Any client able to reach Kestrel would choose its own IP.
 
 **Related:** ADR-003 (tunnel only), ADR-020 (public production, the rate limit is the mitigation), ADR-021 §4 (separate rate-limit buckets), M-016, M-044 (real-stack e2e has two buckets, direct and via nginx — unchanged locally, because there is no cloudflared and so no `CF-Connecting-IP`).
+
+**Amended 2026-10-08 (Tigran): an IPv6 client is partitioned by its /64, not by its full address.** `reviewer` found that once the real client IP arrives, Cloudflare's `CF-Connecting-IP` can be IPv6. Every /128 would then get its own bucket. A single subscriber normally holds a whole /64, which is 2^64 addresses, so the 5/min `auth` limit stops limiting anything for an IPv6-capable attacker. Before this ADR, the accidental global bucket at least capped brute force at 5/min in total. By ADR-020 the per-IP limit is the only brute-force mitigation, so this ADR had traded the DoS for a brute-force hole. The fix lives in `RateLimiterExtensions.ResolveClientKey`, the one place every IP partition (and the IP fallback of `ResolveUserKey`) goes through:
+- an IPv4 address, or an IPv4-mapped IPv6 address (`::ffff:a.b.c.d`, normalised to IPv4 first), stays as it is;
+- any other IPv6 address is masked to its /64 prefix.
+
+**Rejected:** (a) **Cloudflare Pseudo-IPv4.** It is a dashboard setting that is invisible in the repo, and its mapping would need its own verification. (b) **A per-account failed-login limit in addition.** It is stronger against distributed brute force, but it lets anyone lock a known account's owner out. It stays a separate decision and is not part of Phase 0. (c) **Accepting the risk.** It would leave the auth surface weaker than before this ADR.
