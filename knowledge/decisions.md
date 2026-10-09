@@ -643,3 +643,13 @@ Date: 2026-10-08 | Status: accepted | Area: external service, infrastructure | A
 - (d) **An outbox with retries.** Not justified at current volume; resend-by-user covers transient failures.
 
 **Related:** ADR-025, ADR-028, M-013 (the real sender is tested against a stubbed `HttpMessageHandler`), M-016.
+
+**Amended 2026-10-09 (Tigran approved the migration and the numbers):**
+- **Limits.** `email-verification` policy: 10 requests/min per IP, a single bucket shared by verify and resend. Global send budget: `Email:SendBudget:Limit` = 100 per `Email:SendBudget:WindowHours` = 24, the Resend free-tier quota, configurable without a code change.
+- **Migration.** `20261009104046_AddEmailVerification` was approved as written: `UserTokens` + `Users.EmailConfirmedAt` + the grandfather `UPDATE`. `Down` drops the table and the column only.
+- **Choices made during implementation, inside this ADR:**
+  - **Lock order.** Every read *and* write takes `Users` before `UserTokens`. A joined token lookup deadlocked (SQL error 1205) in the race tests, so it was split into two single-table reads. Resend touches the user row first with a no-op conditional update.
+  - **Blocked pending account.** Resend returns 202 and sends nothing. An external sign-in returns `auth.user_blocked` and changes nothing.
+  - **Pending reset by an external sign-in.** Also clears the phone, the preferred language, `CreatedAt` and the home point.
+  - **Replacement vs. a concurrent fresh token.** Returns 429 `auth.verification_cooldown`.
+  - **`Retry-After` and CORS.** The header is not CORS-exposed. Production is same-origin, so the client reads it there. In dev the client falls back to 60 s.
