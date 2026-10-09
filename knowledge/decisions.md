@@ -519,3 +519,5 @@ So every "per-IP" limit — `auth` (5/min), `password-change`, `booking-create`,
 - any other IPv6 address is masked to its /64 prefix.
 
 **Rejected:** (a) **Cloudflare Pseudo-IPv4.** It is a dashboard setting that is invisible in the repo, and its mapping would need its own verification. (b) **A per-account failed-login limit in addition.** It is stronger against distributed brute force, but it lets anyone lock a known account's owner out. It stays a separate decision and is not part of Phase 0. (c) **Accepting the risk.** It would leave the auth surface weaker than before this ADR.
+
+**Accepted residual risk of /64 keying:** a subscriber whose provider hands out a /56 or /48 still controls 256 to 65,536 buckets. In the opposite direction, carriers and hosting providers that put many customers into one /64 (and Teredo, which is keyed by relay) make those customers share a bucket. Both effects come with any prefix-based keying. A per-account auth limit is the lever if this ever matters (Rejected (b) above).
