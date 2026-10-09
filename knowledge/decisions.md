@@ -658,3 +658,9 @@ Date: 2026-10-08 | Status: accepted | Area: external service, infrastructure | A
 - **The per-recipient cap covers re-registration too.** Resend and re-registration of a pending email share one budget: at most 5 verification emails per recipient per 24 h. Above it, re-registration answers 429 `auth.verification_cooldown` and changes nothing (password and profile are not overwritten), exactly as during the cooldown.
   - **Why:** otherwise re-registering a victim once a minute would mail them every minute, and would drain the global send budget for everyone within about 20 minutes.
 - **Replacement revokes only tokens older than the cooldown,** the same rule as resend. A concurrent fresh token then makes the filtered unique index reject the insert, the transaction rolls back, and the caller gets 429 instead of a second email.
+
+**Amended 2026-10-09 (Tigran), accepted risk of the shared cap:** the shared per-recipient cap reintroduces a renewable squat.
+- **How it works:** an attacker registers a victim's address and spends the 5-per-24h cap on re-registrations. For about 24 h the real owner gets 429 on re-registration and silent 202s on resend, and every link already sent carries the attacker's password. Five requests a day keep the address blocked indefinitely.
+- **Why accepted:** the alternative, a cap on resend only, lets one IP mail-bomb a victim and drain the global send budget in about 20 minutes, which closes sign-up for **everyone** until the window rolls. A targeted, rare squat was chosen over a cheap platform-wide outage.
+- **Ways out for a victim:** a Google/Apple sign-in on that address (the pending reset has no domain rule), or an admin deleting the pending account by hand on request (it owns nothing by construction).
+- **Monitoring:** alert on the global-budget Critical log and on a high rate of over-cap 429s.
