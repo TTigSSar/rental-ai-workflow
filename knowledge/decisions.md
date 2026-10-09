@@ -521,3 +521,125 @@ So every "per-IP" limit — `auth` (5/min), `password-change`, `booking-create`,
 **Rejected:** (a) **Cloudflare Pseudo-IPv4.** It is a dashboard setting that is invisible in the repo, and its mapping would need its own verification. (b) **A per-account failed-login limit in addition.** It is stronger against distributed brute force, but it lets anyone lock a known account's owner out. It stays a separate decision and is not part of Phase 0. (c) **Accepting the risk.** It would leave the auth surface weaker than before this ADR.
 
 **Accepted residual risk of /64 keying:** a subscriber whose provider hands out a /56 or /48 still controls 256 to 65,536 buckets. In the opposite direction, carriers and hosting providers that put many customers into one /64 (and Teredo, which is keyed by relay) make those customers share a bucket. Both effects come with any prefix-based keying. A per-account auth limit is the lever if this ever matters (Rejected (b) above).
+
+## ADR-028: Hard email verification — an unverified account is a replaceable pending registration, and verifying takes the link token *and* the password
+Date: 2026-10-08 | Status: accepted | Area: auth surface, data model, API contract | Approved by Tigran: D1–D8, R1–R12, Rev 3.1 (2026-10-08), after two adversarial reviews
+
+**Context:** `POST /api/auth/register` issued a JWT to any email at once, and nothing in production sent mail (`IEmailService` was a logging stub; see ADR-005, ADR-021 §6). `Users.IsEmailConfirmed` has existed since `AddUserTrustFields` but was never set. Tigran decided: Resend as the provider (ADR-029), a hard gate, confirmation by link, existing users grandfathered.
+
+**Decision:**
+1. **Hard gate.**
+   - Register returns **201 `{ email, verificationRequired: true }`** and never a token. This is a breaking change to the response body.
+   - Login with the correct password on an unverified account returns **403 `auth.email_not_verified`**. The check runs after the password check and the `IsBlocked` check.
+   - JWTs are issued in exactly three places (register, login, external), and all three are gated. So an unverified user owns nothing: no listings, bookings, chats, reviews or favourites.
+2. **Pending-registration model (D2).** An unverified account is a pending registration that any later proof of ownership replaces completely.
+   - Re-registering a pending email overwrites the password, profile and home point, revokes the old tokens and sends a new link.
+   - During the 60 s cooldown the response is instead **429 `auth.verification_cooldown`** with `Retry-After`, and nothing changes.
+   - A Google/Apple sign-in on a pending email resets the account: `PasswordHash = ""`, profile from the provider, tokens revoked, account verified.
+   - A blocked pending account is never replaced.
+3. **Verification needs both the token and the password (D1).**
+   - Request: `POST /api/auth/verify-email { token, password }`.
+   - A wrong password returns **401 `auth.invalid_credentials`** and does not consume the token.
+   - Why both: the link alone is not a login. A victim who clicks a link from a registration someone else made cannot verify the attacker's password. Forwarded or tracked links and mail scanners cannot log anyone in or burn the token.
+   - Success returns `AuthResponse` (auto-login). It is issued only after the commit and built from the freshly re-read user.
+4. **Atomicity (R1).** Every writer takes locks in the order `Users` → `UserTokens`. The write logic lives in an Infrastructure store, never in an Application service.
+   - **Verify:** pre-checks and BCrypt run outside the transaction. Then, in one transaction:
+     - `UPDATE Users SET IsEmailConfirmed=1, EmailConfirmedAt=@now WHERE Id=@u AND IsEmailConfirmed=0 AND IsBlocked=0 AND PasswordHash=@seenHash`
+     - `UPDATE UserTokens SET ConsumedAt=@now WHERE Id=@t AND Purpose=@p AND ConsumedAt IS NULL AND ExpiresAt>@now`
+     - Both must affect exactly one row; otherwise roll back.
+     - The `PasswordHash=@seenHash` predicate is what stops a concurrent replacement from leaving a verified account with the attacker's password.
+   - **Replacement** is conditional on `IsEmailConfirmed=0 AND IsBlocked=0`.
+   - Unique-index violations (SQL Server 2601/2627, SQLite 19) map to defined outcomes, never a 500. A concurrent duplicate registration returns 409.
+5. **Tokens.**
+   - 32 bytes from a CSPRNG, base64url-encoded. Only the SHA-256 is stored.
+   - TTL 24 h, single use.
+   - Lookups always match `TokenHash` **and** `Purpose`.
+   - Replaced tokens are **revoked** (`ConsumedAt` set), not deleted. A revoked token on an unverified user returns `invalid` ("link replaced"); on a verified user it returns 409 `auth.email_already_verified`.
+   - An expired token returns 400 `auth.verification_token_expired`. Any other invalid token returns 400 `auth.verification_token_invalid`.
+6. **Link (D7):** `{App:PublicBaseUrl}/auth/verify-email#token=…`.
+   - The token sits in the fragment, so it never reaches access logs or `Referer`.
+   - The base URL comes only from config, never from `Request.Host`.
+   - The verify page strips the fragment at once, keeps the token in component memory only, and posts only when the user clicks.
+7. **Resend:** `POST /api/auth/resend-verification { email }` always returns 202.
+   - Cooldown: 60 s per user, measured from the last token's `CreatedAt`, enforced by a conditional revoke.
+   - At most 5 emails per recipient per 24 h.
+   - A verified or unknown email gets 202 with nothing sent.
+8. **Abuse budget.**
+   - Per-IP policy `email-verification` on verify and resend. Per-IP limiting works since ADR-027.
+   - A global cap counts **sent emails**, set at the provider-quota level. When it is exhausted:
+     - register still returns 201 and resend 202;
+     - no email goes out;
+     - a Critical log entry is written.
+
+     Nobody gets a 429 because of someone else's traffic.
+9. **Production email gate (R5).** In Production, if `Email:Provider ≠ Resend`, the API key is empty, or `App:PublicBaseUrl` is not https:
+   - register and resend return **503 `auth.registration_unavailable`**, and no user is created;
+   - startup logs Critical and the process stays up (M-016).
+10. **External identities.**
+    - Google auto-links to an existing **verified** account only for `gmail.com`/`googlemail.com`, or when `hd` equals the email's domain (D3).
+    - Apple auto-links only for `privaterelay.appleid.com`, `icloud.com`, `me.com` and `mac.com`; otherwise **409 `auth.external_link_conflict`**.
+    - Apple's `email_verified` is accepted as a bool or a string; otherwise the email is ignored.
+    - Linking is still keyed by the provider `sub` first.
+11. **Schema.**
+    - New table `UserTokens`:
+
+      | Column | Notes |
+      |---|---|
+      | `Id` | |
+      | `UserId` | FK, cascade |
+      | `Purpose` | int; explicit values, never reused |
+      | `TokenHash` | binary(32) |
+      | `ExpiresAt` | |
+      | `ConsumedAt` | nullable |
+      | `CreatedAt` | |
+
+      Indexes: `UX(TokenHash)` and `UX(UserId, Purpose) WHERE ConsumedAt IS NULL`.
+    - New column `Users.EmailConfirmedAt datetime2 NULL` (D8). NULL together with `IsEmailConfirmed=1` means grandfathered. It is written only inside the conditional update, so it is never overwritten.
+    - Data step: `UPDATE Users SET IsEmailConfirmed = 1`. `Down` does not un-verify anyone.
+    - Seeds and bootstrap runners create verified users.
+12. **Email body.** It carries no user-controlled data (no name). Otherwise register would work as an open phishing relay from @dorent.am.
+13. **Accepted risks.**
+    - Enumeration through the existing 409 on register (D6).
+    - A rollback to pre-verification code lets unverified users log in. Before rolling forward again, the grandfather script in `rental-api/deploy/` marks as verified the unverified users who gained data (R10).
+
+**Rejected:**
+- (a) **A token-only link with auto-login.** The link becomes a bearer login credential, and a victim's click verifies an attacker's pre-hijacked account.
+- (b) **A token-only link without auto-login.** The pre-hijack remains.
+- (c) **409 on any existing email, plus clearing only the password on external sign-in.** The attacker's squat blocks the email forever, and their phone number and name survive.
+- (d) **A 6-digit code.** It needs brute-force protection, and Tigran chose the link.
+- (e) **A global rate limit that counts requests.** One attacker could block registration for everyone.
+- (f) **Failing startup on bad email config.** That is the M-016 failure.
+
+**Related:** ADR-005, ADR-014, ADR-020, ADR-021, ADR-023 (migration rehearsal), ADR-024 (home point), ADR-025 (localized copy), ADR-027 (client IP), ADR-029, M-013, M-016, M-051.
+
+## ADR-029: Transactional email goes through Resend over plain HttpClient, behind an `IEmailSender` transport seam; only verification email is live
+Date: 2026-10-08 | Status: accepted | Area: external service, infrastructure | Approved by Tigran 2026-10-07/08 (provider choice, D5, R9, R12)
+
+**Decision:**
+1. **Seam.** `IEmailService` (content: which email, in which language) sits over `IEmailSender` (transport). Two implementations:
+   - `LoggingEmailSender`: development and tests. In Production it logs only "suppressed", never the link.
+   - `ResendEmailSender`: a typed `HttpClient` calling the Resend REST API, with **no SDK**.
+2. **Config.**
+   - Keys: `Email:Provider = Log | Resend` (default `Log`), `Email:From`, `Email:Resend:ApiKey`, `App:PublicBaseUrl`.
+   - Parsed tolerantly (M-016).
+   - Compose maps them with `${VAR:-default}` fallbacks.
+3. **Delivery semantics.**
+   - Send after the commit.
+   - 10 s timeout on the sender's own token, not `RequestAborted`.
+   - **No retry and no `Idempotency-Key`.** Without retries there is nothing to deduplicate. If retries are ever added, check Resend's idempotency semantics against its official documentation first.
+   - Never throw. A failed send is logged at Error with the provider status and without the token; the user recovers through resend.
+4. **Content.** en/hy/ru by `PreferredLanguage` with an English fallback (ADR-025 precedent), HTML plus a text part.
+5. **Scope (D5).** Only verification email goes through Resend. Listing approved/rejected emails stay on the logging path until a separate decision enables them.
+6. **Domain.**
+   - Sender `no-reply@dorent.am`.
+   - DNS: Resend's DKIM (`resend._domainkey`), SPF and MX on `send.dorent.am`, DMARC starting at `p=none`.
+   - Click and open tracking are **disabled**, because the link carries a token.
+   - Legacy cPanel DNS records are not touched without per-record approval.
+
+**Rejected:**
+- (a) **The Resend .NET SDK.** One endpoint does not justify a dependency.
+- (b) **Plain SMTP (MailKit).** Worse deliverability, and it means running a mailbox for the domain.
+- (c) **Brevo or SendGrid.** Heavier setup for the same outcome.
+- (d) **An outbox with retries.** Not justified at current volume; resend-by-user covers transient failures.
+
+**Related:** ADR-025, ADR-028, M-013 (the real sender is tested against a stubbed `HttpMessageHandler`), M-016.
