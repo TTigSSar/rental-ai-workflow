@@ -653,3 +653,8 @@ Date: 2026-10-08 | Status: accepted | Area: external service, infrastructure | A
   - **Pending reset by an external sign-in.** Also clears the phone, the preferred language, `CreatedAt` and the home point.
   - **Replacement vs. a concurrent fresh token.** Returns 429 `auth.verification_cooldown`.
   - **`Retry-After` and CORS.** The header is not CORS-exposed. Production is same-origin, so the client reads it there. In dev the client falls back to 60 s.
+
+**Amended 2026-10-09 (Tigran), after review:**
+- **The per-recipient cap covers re-registration too.** Resend and re-registration of a pending email share one budget: at most 5 verification emails per recipient per 24 h. Above it, re-registration answers 429 `auth.verification_cooldown` and changes nothing (password and profile are not overwritten), exactly as during the cooldown.
+  - **Why:** otherwise re-registering a victim once a minute would mail them every minute, and would drain the global send budget for everyone within about 20 minutes.
+- **Replacement revokes only tokens older than the cooldown,** the same rule as resend. A concurrent fresh token then makes the filtered unique index reject the insert, the transaction rolls back, and the caller gets 429 instead of a second email.
