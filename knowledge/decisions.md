@@ -754,8 +754,11 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
 5. **Names.**
    - The first name comes from `given_name`, then the full `name`. The last name comes from `family_name`, otherwise it stays empty.
    - **The email local part is never used as a name**, because names are shown to other users.
-   - If no first name results, the SPA shows a one-field "what should we call you?" step right after sign-in. It uses the name endpoint below.
-     - Accepted risk: a user who dismisses that step appears with an empty name in bookings and chat until they set one. The phone gate does not check the name.
+   - If no first name results, the SPA shows a "what should we call you?" step: a required first name and an optional last name. It uses the name endpoint below.
+     - **The step cannot be dismissed** (amended 2026-10-10 after the design review, Tigran). It has no close button, no swipe-down and no Esc; only "Continue".
+     - **Trigger:** the signed-in user's `firstName` is empty. This is checked after every sign-in and on app start, so a tab closed mid-step brings the step back.
+     - No `isNewUser` flag and no contract change. Because the step is mandatory, an empty first name means "never set". This replaces the earlier accepted risk of an empty name in bookings and chat.
+     - Nothing substitutes for a missing name, and the email local part is never shown (point (j)).
      - No schema change is needed. `FirstName` and `LastName` are NOT NULL nvarchar(100) with no CHECK constraint, so `""` is valid. The UI's initials code handles empty strings.
    - Values from Google are trimmed and truncated to 100 characters (the column size).
    - Linking to an existing account never overwrites its name.
@@ -797,8 +800,23 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
    - The "or" section and Google's rendered button return to the auth dialog, in both the login and register tabs. They are shown only when `externalAuth.google.clientId` is set.
    - Google branding rules, popup mode, no One Tap.
    - Errors are translated by `errorCode` (en/hy/ru); `externalAuthFailure` carries `errorCode`. 409 `external_link_conflict` → "an account with this email exists — sign in with your password".
-   - Profile gets a name editor.
+   - Profile gets a "Personal info" card: first name, optional last name, phone, and a read-only email. It is edited in place.
    - `profile.security.errors.passwordNotSet` stops naming Google.
+   - **Design decisions** (Claude Design project `df24299b…`, boards "Google Sign-in · 1–3", reviewed 2026-10-10):
+     - **Placement.** The Google block sits at the top of both tabs, then "or", then the unchanged password form.
+     - **Button.** GIS `renderButton` with `theme: outline`, `size: large`, `shape: pill`, `text: continue_with`, `logo_alignment: left`. `width` is the container width clamped to 200–400 px. `locale` is the DoRent UI language, passed explicitly.
+       - Changing the language or resizing re-renders with the same nonce. A *new* nonce still follows the point 3 rule.
+     - **Loading.** A transparent blocker covers the GIS iframe at 45% opacity, with a spinner line under it. Tabs, fields and submit are disabled; close stays active.
+     - **409 `auth.external_link_conflict`.**
+       - The dialog switches to Sign in and focuses the password field.
+       - The email field is prefilled from the `email` claim of the Google credential the SPA already holds. It is used for display only and is never sent as identity. There is no contract change.
+     - **503 `auth.external_provider_unavailable`.** The button and "or" are removed until the dialog is reopened.
+     - **Phone step.** It reuses the home-point gate layout.
+       - The CTA names the follow-up action: "Save and publish" / "Save and send request".
+       - "Not now" closes the step without touching the form underneath.
+       - The sheet cannot be dismissed while saving.
+     - **No "Forgot password?" link.** DoRent has no password reset. The design assumed one; it is deferred to the Trello card "Password reset" (High).
+     - **Armenian strings** on the boards are drafts. They go through the native-speaker review card.
 10. **Google Cloud console:** the authorized JavaScript origins include `https://dorent.am` and `http://localhost:4200`. No client secret is needed.
 11. **Accepted residual risks.**
     - A 60-min JWT in `localStorage` with no CSP. Adding GIS barely changes the exposure; the only `bypassSecurityTrustHtml` (`icon.component.ts:82`) renders constant SVGs.
@@ -820,6 +838,9 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
 - (g2) **Re-`initialize` without re-rendering the GIS button.** The spike showed that the token then carries the stale nonce.
 - (g3) **A global per-request `IsBlocked` check.** It breaks the moderation appeal and adds a DB hit per request.
 - (g4) **The phone gate also enforcing a name (variant а for empty names).** Tigran kept the separate name step.
+- (g5) **A dismissable name step with an email-local-part display fallback.** This was the design's proposal. It leaks part of the address to other users, see (j).
+- (g6) **`isNewUser` in the auth response.** It is redundant once the name step is mandatory.
+- (g7) **Returning the email in the 409 body.** The SPA already holds it in the credential.
 - (h) **Keeping today's non-authoritative pending reset (variant а).** A recycled address's old owner could wipe the real owner's registration.
 - (i) **Google-for-Gmail/Workspace-only (variant в).** It turns away legitimate Google users on other mail domains.
 - (j) **The email local part as a name fallback.** It leaks part of the address to other users.
