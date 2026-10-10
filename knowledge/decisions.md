@@ -724,7 +724,14 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
      - `initialize` + clearing the container + `renderButton` put the latest nonce in the token.
      - Closing the popup fires no callback, only a window `focus` event.
    - **Rule:** every new nonce means `initialize(nonce)` + empty the button container + `renderButton`, always together. `initialize` alone is never called.
-   - The SPA fetches a nonce when the dialog opens, after every server answer, and every 4 min while the dialog stays open.
+   - **When the SPA fetches a new nonce** (amended 2026-10-10, Tigran F1 — no timer):
+     - when the dialog opens;
+     - after every server answer;
+     - when the window regains focus and the nonce is older than 4 min, with no request in flight.
+   - The button is **never re-rendered while the window is unfocused**, because that means a Google popup is open, so an in-progress attempt is not disturbed.
+   - Credential callbacks that arrive while an `/external` request is in flight are ignored.
+   - A popup left open past the 5-min TTL gets 400. The UI says "try again" and fetches a new nonce.
+   - A second real-GIS experiment confirms this before the UI is built: re-render while a popup is open, double click, and window `blur` on popup open.
    - Cancellation is not handled. A nonce left unused by a closed popup simply expires.
    - **Fallbacks if GIS behaviour changes:**
      - (a) one nonce per dialog open with a 10 min TTL, re-creating the dialog on expiry;
@@ -773,7 +780,10 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
    - It is used only when a user is created.
    - The UI **must** send the current UI language, and a UI test asserts it.
 7. **Hardening, mandatory before launch.**
-   - Rate-limit policy `external-auth`: 10 per minute per IP (ADR-027 client IP), applied to `/external` and `/external/nonce`.
+   - **Two separate rate-limit policies** (amended 2026-10-10, Tigran F2), both keyed by ADR-027 client IP:
+     - `external-auth-nonce`: 30 per minute per IP, on `/external/nonce`;
+     - `external-auth`: 10 per minute per IP, on `/external`.
+   - **Why separate:** one attempt costs about three requests (a nonce on open, the sign-in, a nonce after the answer). A shared 10/min bucket would allow about three attempts per minute for a whole carrier-grade-NAT IP.
      - **IPv6 is keyed by /48 in this policy**, not the /64 used elsewhere. One /48 holds 65 536 /64s, enough to fill the nonce store within minutes.
      - The client IP chain was verified 2026-10-10: Cloudflare sets `CF-Connecting-IP` → nginx overwrites `X-Forwarded-For` with it (`nginx.conf:52`) → the API trusts it only from `KnownNetworks`, with `ForwardLimit=1`.
      - Not verified from the repository: that nginx's port is not reachable around the tunnel. platform-engineer checks it on the server.
@@ -821,7 +831,17 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
 11. **Accepted residual risks.**
     - A 60-min JWT in `localStorage` with no CSP. Adding GIS barely changes the exposure; the only `bypassSecurityTrustHtml` (`icon.component.ts:82`) renders constant SVGs.
     - **A blocked user keeps read access until the JWT expires (≤ 60 min).**
-      - Every write path checks `IsBlocked`: listings, listing images, bookings, chat, favorites, reports, home point, auth/me, and reviews since rental-api `8aa5210`.
+      - **Correction, 2026-10-10:** the plan review found that the earlier wording ("every write path checks `IsBlocked`") was false.
+        - `ListingsOwnerService.UpdateAsync`, `ArchiveAsync`, `RestoreAsync` and `ResubmitAsync`, and `ChatService.GetOrCreateForBookingAsync`, did not check it.
+        - Tigran (F3) ordered a separate fix before the Google feature. After it, these paths reject a blocked caller with 403 `*.user_blocked`:
+          - listings: create, update, archive, restore, resubmit;
+          - listing images;
+          - bookings;
+          - chat: conversation creation, and sending except the appeal;
+          - favorites, reports, reviews (since rental-api `8aa5210`), home point;
+          - `auth/me/*`.
+        - Deliberately **not** blocked: marking chat messages and notifications as read. It is harmless.
+        - A matrix HTTP test pins this list.
       - The one deliberate exception is the moderation-chat appeal (`ChatService.cs:184-196`).
       - A global per-request block check (`OnTokenValidated`) was rejected. It would break that appeal, which works only with a pre-block JWT because login rejects blocked users, and it costs a DB hit per request.
     - Embedded WebViews may refuse Google OAuth; password sign-in remains.
