@@ -410,3 +410,18 @@ Date: 2026-10-09 | Area: infra (production deploy, ADR-027 Phase 0)
 - (a) Any deploy that changes a network's config is a full-stack recreate. Run it with `--force-recreate`, or follow it with a force-recreate of every service that kept its container. Then check `Aliases` and name resolution from inside a dependent container, not just "Up".
 - (b) A rehearsal must exercise the same paths the real deploy will take. If the real network has containers that won't change, the rehearsal must have one too.
 - (c) Before a HIGH-risk production deploy, Tigran is either present for the whole deploy or has pre-granted the specific recovery commands. A recovery path that needs a human approval nobody can give is not a recovery path.
+
+## M-056: The backend read a field the UI never sent, and every verification email went out in English
+Date: 2026-10-10 | Area: cross-repo contract (auth, email verification)
+**Symptom:** Tigran registered with the site in Armenian, and the verification email arrived in English. Every test was green: 951 backend, 1650 unit, 114 mocked e2e, 23 real-tier. Two reviews and a security review had passed.
+**Cause:**
+- ADR-028/029 said the email follows `PreferredLanguage`. The backend took it from `RegisterRequest.PreferredLanguage`, and its tests sent that field.
+- The Angular register form had never sent it. `LanguageService` persists a language switch only for signed-in users, so a signed-out sign-up reached the backend with null, and the email fell back to English.
+- Each side was tested against its own assumption. contract-guardian syncs shapes and does not check that an optional field is actually populated.
+**Fix:**
+- Rental-Ui `176fa2f`: the register payload carries `languageService.current().code`.
+- A unit test switches the UI to hy and expects `"hy"` in the payload.
+- The mocked e2e asserts the field on the captured POST body.
+**Rule:**
+- When a feature depends on an optional request field, trace it end to end in the plan: who writes it, where it is set, and which test proves the real client sends it.
+- An optional DTO field that only backend tests populate is untested from the user's side.
