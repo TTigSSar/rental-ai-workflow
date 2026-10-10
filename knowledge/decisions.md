@@ -842,7 +842,7 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
           - `auth/me/*`.
         - Deliberately **not** blocked: marking chat messages and notifications as read. It is harmless.
         - A matrix HTTP test pins this list.
-      - The one deliberate exception is the moderation-chat appeal (`ChatService.cs:184-196`).
+      - The one deliberate exception is the moderation-chat appeal (`isAppealingSuspendedMember` in `ChatService.SendMessageAsync` and `SendImageMessageAsync`).
       - A global per-request block check (`OnTokenValidated`) was rejected. It would break that appeal, which works only with a pre-block JWT because login rejects blocked users, and it costs a DB hit per request.
     - Embedded WebViews may refuse Google OAuth; password sign-in remains.
     - CSP and an explicit timeout on Google cert fetches go to follow-up cards.
