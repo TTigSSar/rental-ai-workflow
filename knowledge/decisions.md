@@ -612,6 +612,8 @@ Date: 2026-10-08 | Status: accepted | Area: auth surface, data model, API contra
 
 **Related:** ADR-005, ADR-014, ADR-020, ADR-021, ADR-023 (migration rehearsal), ADR-024 (home point), ADR-025 (localized copy), ADR-027 (client IP), ADR-029, M-013, M-016, M-051.
 
+**Amended 2026-10-10 by ADR-030 §4.** A Google sign-in resets a pending registration (§2) only when the email is authoritative: Gmail/Googlemail, or `hd` equal to the email's domain. Every other email answers 409 `auth.external_pending_registration`. A new user can still be created with a non-authoritative email when no account has it.
+
 ## ADR-029: Transactional email goes through Resend over plain HttpClient, behind an `IEmailSender` transport seam; only verification email is live
 Date: 2026-10-08 | Status: accepted | Area: external service, infrastructure | Approved by Tigran 2026-10-07/08 (provider choice, D5, R9, R12)
 
@@ -664,3 +666,165 @@ Date: 2026-10-08 | Status: accepted | Area: external service, infrastructure | A
 - **Why accepted:** the alternative, a cap on resend only, lets one IP mail-bomb a victim and drain the global send budget in about 20 minutes, which closes sign-up for **everyone** until the window rolls. A targeted, rare squat was chosen over a cheap platform-wide outage.
 - **Ways out for a victim:** a Google/Apple sign-in on that address (the pending reset has no domain rule), or an admin deleting the pending account by hand on request (it owns nothing by construction).
 - **Monitoring:** alert on the global-budget Critical log and on a high rate of over-cap 429s.
+
+## ADR-030: Social login relaunches with Google only — a server-issued single-use nonce read from the token, a pending registration is reset only by an authoritative Google email, names come from Google without email fallbacks, and a missing phone is required at the first listing and the first booking
+Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 amendment, cross-cutting profile rules | Approved by Tigran 2026-10-10 (the whole record, after a second review and a real-GIS spike)
+
+**Context:**
+- The review of 2026-10-10 verified the code, then ChatGPT's independent review re-checked it. Social login is not live:
+  - commit `d6cd9e9` (Rental-Ui, 2026-05-15) removed the buttons;
+  - production carries placeholder Google/Apple audiences, with no `ExternalAuth__*` mapping in compose.
+- The backend from ADR-028 §10 exists. Its gaps:
+  - `POST /api/auth/external {provider, idToken}` has no nonce and no rate limit;
+  - the link path turns a unique-index race into a 500 (`AuthService.cs:552`);
+  - new-user creation and the pending reset apply no domain rule (`:504-524`, `:562-577`);
+  - a missing Google name falls back to the email local part (`:636-650`), and names are not truncated to the 100-char columns;
+  - no endpoint lets a user change their name or phone.
+
+**Decisions approved by Tigran on 2026-10-10:**
+- Google only.
+- Nonce now.
+- Phone at the first listing and the first booking.
+- Facebook and Apple deferred to the Trello card "Social login: Facebook and Apple sign-in" (Medium).
+- Variant (б) for non-authoritative emails.
+- The names plan, including name editing, with an optional last name.
+- The final amendments after the second review:
+  - a `ConcurrentDictionary` nonce store;
+  - variant (б) for an empty name, which keeps the separate name step;
+  - the review-submission block gap was fixed separately, outside this ADR (rental-api `8aa5210`).
+
+**Decision:**
+1. **Scope.**
+   - Only Google is shown and configured.
+   - The Apple backend path stays unchanged and hidden: the UI has no Apple config.
+   - No schema change. The single provider column stays; `UserExternalLogins` is decided together with Facebook.
+2. **Nonce.**
+   - `POST /api/auth/external/nonce`: anonymous, rate-limited. Returns `{ nonce, expiresAt }`, where the nonce is 32 bytes from a CSPRNG, base64url, valid 5 min.
+   - **Store:** a singleton `ExternalAuthNonceStore` over a `ConcurrentDictionary<string, DateTimeOffset>`. The key is the hex SHA-256 of the nonce, the value is its expiry. The store keeps its own `Interlocked` counter, because `ConcurrentDictionary.Count` takes every lock.
+     - Capacity is 50 000 entries, about 200 B each, so roughly 10 MB when full.
+     - When full, issuance answers 503 and logs Critical. It **never evicts** a live entry, so an attacker cannot push out real users' nonces.
+     - A `BackgroundService` with a 60 s `PeriodicTimer` sweeps expired entries.
+     - Memory is sufficient: one VPS, one API process. A restart drops pending nonces, and the user clicks again.
+     - The validator is Scoped; the store it uses is a Singleton.
+   - **Order of operations:**
+     1. `GoogleJsonWebSignature.ValidateAsync` checks signature, `iss`, `aud` and `exp`. A failure answers 400 and does not touch the store.
+     2. Read `payload.Nonce` (`JsonWebToken.Payload.Nonce` in Google.Apis.Auth 1.76.0).
+     3. `TryRemove` its hash. This is atomic: exactly one concurrent caller wins. A missing, unknown or expired nonce answers 400.
+     4. Then `email_verified` and user resolution. The nonce stays consumed even if this step answers 403 or 409.
+   - `Google.Apis.Auth` is pinned to an exact version instead of today's `1.*`.
+   - **The nonce is read from the token, not from the request.** The validator first checks signature, `iss`, `aud` and `exp`, then atomically `TryRemove`s `payload.Nonce`.
+     - A missing, unknown, expired or already-consumed nonce → 400 `auth.external_invalid_token`.
+     - Concurrent replays of one token → exactly one succeeds.
+     - Unsigned garbage never touches the store.
+     - `ExternalAuthRequest` gets no `nonce` field.
+3. **GIS lifecycle.**
+   - Google documents that `initialize` should be called once, and that on repeated calls the last configuration wins.
+   - **Real-GIS spike, 2026-10-10:**
+     - Re-calling `initialize` with a new nonce **without** re-rendering left the old nonce in the token. An already-rendered button keeps the configuration it was rendered with.
+     - `initialize` + clearing the container + `renderButton` put the latest nonce in the token.
+     - Closing the popup fires no callback, only a window `focus` event.
+   - **Rule:** every new nonce means `initialize(nonce)` + empty the button container + `renderButton`, always together. `initialize` alone is never called.
+   - The SPA fetches a nonce when the dialog opens, after every server answer, and every 4 min while the dialog stays open.
+   - Cancellation is not handled. A nonce left unused by a closed popup simply expires.
+   - **Fallbacks if GIS behaviour changes:**
+     - (a) one nonce per dialog open with a 10 min TTL, re-creating the dialog on expiry;
+     - (b) redirect mode with `login_uri` and a `g_csrf_token` check, as a last resort.
+4. **Pending registrations and non-authoritative emails (amends ADR-028 §2 and §10).**
+   - "Authoritative" means `gmail.com`/`googlemail.com`, or `hd` equal to the email's domain. Only for such emails does Google vouch for *current* mailbox ownership, as Google's ID-token guide says.
+   - A Google sign-in with an authoritative email keeps today's behaviour:
+     - it creates the user, or
+     - links to a confirmed account, or
+     - resets a pending registration.
+   - With a **non-authoritative** email (for example, a Google account on yahoo.com):
+     - it **creates** a new user when no account has that email;
+     - it **does not** link to a confirmed account (409 `auth.external_link_conflict`, unchanged);
+     - it **no longer resets a pending registration**. It returns 409 `auth.external_pending_registration`, meaning "a registration for this email is waiting for its confirmation link".
+   - **Conditions for converting a pending registration. All must hold; no schema change:**
+     1. the token is valid and its nonce consumed;
+     2. `email_verified == true`;
+     3. the email is authoritative;
+     4. `(google, sub)` is linked to no user (looked up first; a race is caught by the unique index);
+     5. the conditional update's predicate is `!IsEmailConfirmed && !IsBlocked && ExternalAuthProvider IS NULL`. The `ExternalAuthProvider IS NULL` part is new.
+   - The conversion is not "deletion on an email match". Google's proof of current ownership of an authoritative mailbox is the same proof ADR-028 asks of the link.
+   - What gets wiped (password, phone, home point) was entered by whoever started the registration, so it is unverified. Keeping the password would let a squatter in.
+   - A pending account owns no data by construction: no JWT is ever issued to it. A test pins this.
+   - The reset writes `PreferredLanguage` from the request instead of today's `null` (`EmailVerificationStore.cs:281`). Otherwise M-056 repeats on this path.
+   - The ADR-028 squat escape hatch via Google remains for Gmail/Workspace addresses. For others, the escape is an admin deleting the pending account.
+   - Residual risk, accepted: someone who once owned a recycled address can be first to create an account with it. There is no password reset to recover it.
+5. **Names.**
+   - The first name comes from `given_name`, then the full `name`. The last name comes from `family_name`, otherwise it stays empty.
+   - **The email local part is never used as a name**, because names are shown to other users.
+   - If no first name results, the SPA shows a one-field "what should we call you?" step right after sign-in. It uses the name endpoint below.
+     - Accepted risk: a user who dismisses that step appears with an empty name in bookings and chat until they set one. The phone gate does not check the name.
+     - No schema change is needed. `FirstName` and `LastName` are NOT NULL nvarchar(100) with no CHECK constraint, so `""` is valid. The UI's initials code handles empty strings.
+   - Values from Google are trimmed and truncated to 100 characters (the column size).
+   - Linking to an existing account never overwrites its name.
+   - New `PUT /api/auth/me/name { firstName, lastName }`:
+     - authenticated, answers 204;
+     - `firstName` required, 1–100 characters after trim;
+     - `lastName` **optional**, 0–100. This differs from `RegisterRequest`, which keeps requiring it, because some Google accounts have no family name;
+     - per-user rate limit 10 per hour;
+     - available to every user from the profile page.
+6. **Language at creation** (lesson of M-056). `ExternalAuthRequest` gains optional `preferredLanguage`.
+   - Only `en`/`hy`/`ru` are accepted; anything else becomes null, which falls back to English.
+   - It is used only when a user is created.
+   - The UI **must** send the current UI language, and a UI test asserts it.
+7. **Hardening, mandatory before launch.**
+   - Rate-limit policy `external-auth`: 10 per minute per IP (ADR-027 client IP), applied to `/external` and `/external/nonce`.
+     - **IPv6 is keyed by /48 in this policy**, not the /64 used elsewhere. One /48 holds 65 536 /64s, enough to fill the nonce store within minutes.
+     - The client IP chain was verified 2026-10-10: Cloudflare sets `CF-Connecting-IP` → nginx overwrites `X-Forwarded-For` with it (`nginx.conf:52`) → the API trusts it only from `KnownNetworks`, with `ForwardLimit=1`.
+     - Not verified from the repository: that nginx's port is not reachable around the tunnel. platform-engineer checks it on the server.
+   - A unique-index violation on the link path → 409, never 500.
+   - `IsBlocked` is checked **before** any link write.
+   - The unsupported-provider message no longer echoes the input.
+   - Production config: `ExternalAuth__Google__ValidAudiences__0` is mapped in compose from `${GOOGLE_CLIENT_ID:-}`. If it is empty in Production:
+     - startup logs Critical, and the process stays up (M-016);
+     - Google sign-in answers 503 `auth.external_provider_unavailable`;
+     - the button is hidden.
+   - No token, raw nonce or email is logged.
+8. **Phone gate.**
+   - A user without a phone gets 409 `listing.phone_required` at listing creation, in the same places as `listing.home_point_required` (`ListingsOwnerService.cs:94,155`).
+   - They get 409 `booking.phone_required` at `BookingsService.CreateAsync`.
+   - The rule depends on whether a phone is missing, not on the provider.
+   - New `PUT /api/auth/me/phone { phoneNumber }`:
+     - authenticated, answers 204;
+     - uses the `RegisterRequest` regex and `[MaxLength(32)]`;
+     - per-user rate limit 10 per hour;
+     - **replacing an existing phone is allowed**.
+   - No SMS verification: the phone is not an identifier, not used for sign-in, and only admins see it. Visibility does not change.
+   - The UI starts reading `CurrentUserResponse.phoneNumber`, which the backend already returns. It shows an inline "add your phone" step, then retries the action.
+9. **UI.**
+   - The "or" section and Google's rendered button return to the auth dialog, in both the login and register tabs. They are shown only when `externalAuth.google.clientId` is set.
+   - Google branding rules, popup mode, no One Tap.
+   - Errors are translated by `errorCode` (en/hy/ru); `externalAuthFailure` carries `errorCode`. 409 `external_link_conflict` → "an account with this email exists — sign in with your password".
+   - Profile gets a name editor.
+   - `profile.security.errors.passwordNotSet` stops naming Google.
+10. **Google Cloud console:** the authorized JavaScript origins include `https://dorent.am` and `http://localhost:4200`. No client secret is needed.
+11. **Accepted residual risks.**
+    - A 60-min JWT in `localStorage` with no CSP. Adding GIS barely changes the exposure; the only `bypassSecurityTrustHtml` (`icon.component.ts:82`) renders constant SVGs.
+    - **A blocked user keeps read access until the JWT expires (≤ 60 min).**
+      - Every write path checks `IsBlocked`: listings, listing images, bookings, chat, favorites, reports, home point, auth/me, and reviews since rental-api `8aa5210`.
+      - The one deliberate exception is the moderation-chat appeal (`ChatService.cs:184-196`).
+      - A global per-request block check (`OnTokenValidated`) was rejected. It would break that appeal, which works only with a pre-block JWT because login rejects blocked users, and it costs a DB hit per request.
+    - Embedded WebViews may refuse Google OAuth; password sign-in remains.
+    - CSP and an explicit timeout on Google cert fetches go to follow-up cards.
+
+**Rejected:**
+- (a) **Launching Google, Apple and Facebook together.** Three provider consoles, a schema change and an untrusted-email flow in one release.
+- (b) **A nonce field in the request.** It is redundant: the signed token already carries the nonce.
+- (c) **A client-generated nonce.** Whoever captured the token also has the nonce.
+- (d) **A stateless HMAC nonce without single use.** It allows replay inside the TTL.
+- (e) **A nonce table in SQL.** Not justified for a 5-minute value in a single process.
+- (f) **`IMemoryCache` as the nonce store.** Read-then-remove is not atomic. With `SizeLimit` its compaction evicts entries, and `Set` silently drops new ones when full.
+- (g) **An LRU-evicting nonce cache.** An attacker could evict real users' nonces.
+- (g2) **Re-`initialize` without re-rendering the GIS button.** The spike showed that the token then carries the stale nonce.
+- (g3) **A global per-request `IsBlocked` check.** It breaks the moderation appeal and adds a DB hit per request.
+- (g4) **The phone gate also enforcing a name (variant а for empty names).** Tigran kept the separate name step.
+- (h) **Keeping today's non-authoritative pending reset (variant а).** A recycled address's old owner could wipe the real owner's registration.
+- (i) **Google-for-Gmail/Workspace-only (variant в).** It turns away legitimate Google users on other mail domains.
+- (j) **The email local part as a name fallback.** It leaks part of the address to other users.
+- (k) **Asking for the phone right after Google sign-up.** It slows down quick sign-up, and browsing needs no phone.
+- (l) **A provider-specific phone rule.**
+- (m) **httpOnly cookies or a BFF now.** They bring CSRF handling and refresh tokens into scope.
+
+**Related:** ADR-014, ADR-024 (home-point gate pattern), ADR-027 (client IP), ADR-028 (§2 and §10 amended by point 4), M-013, M-016, M-056.
