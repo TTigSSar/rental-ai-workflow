@@ -823,6 +823,9 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
      - **Placement.** The Google block sits at the top of both tabs, then "or", then the unchanged password form.
      - **Button.** GIS `renderButton` with `theme: outline`, `size: large`, `shape: pill`, `text: continue_with`, `logo_alignment: left`. `width` is the container width clamped to 200–400 px. `locale` is the DoRent UI language, passed explicitly.
        - Changing the language or resizing re-renders with the same nonce. A *new* nonce still follows the point 3 rule.
+       - **Clarified 2026-10-11** (bug found in the live check). `locale` alone does not translate the label. Google's reference says the language comes from the `hl` parameter of the client script.
+         - The SPA loads `https://accounts.google.com/gsi/client?hl=<code>`.
+         - On a language switch it removes the script and `window.google.accounts`, reloads the script with the new `hl`, then runs initialize + render with the same nonce.
      - **Loading.** A transparent blocker covers the GIS iframe at 45% opacity, with a spinner line under it. Tabs, fields and submit are disabled; close stays active.
      - **409 `auth.external_link_conflict`.**
        - The dialog switches to Sign in and focuses the password field.
