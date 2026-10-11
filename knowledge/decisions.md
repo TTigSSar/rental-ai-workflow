@@ -766,6 +766,13 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
      - **Trigger:** the signed-in user's `firstName` is empty. This is checked after every sign-in and on app start, so a tab closed mid-step brings the step back.
      - No `isNewUser` flag and no contract change. Because the step is mandatory, an empty first name means "never set". This replaces the earlier accepted risk of an empty name in bookings and chat.
      - Nothing substitutes for a missing name, and the email local part is never shown (point (j)).
+     - **Accepted risk, no logout link** (Tigran, 2026-10-11, after the implementation review).
+       - The step can trap two kinds of user until the ≤ 60-min JWT expires, because they can neither dismiss the step nor log out:
+         - someone who chose the wrong Google account;
+         - someone who was suspended by an admin while their name was still empty. Saving their name answers 403.
+       - **Why accepted:** the step only appears when Google sends neither `given_name` nor `name`. Both claims are documented as optional, but a Google account always has a first name, so no common case is known.
+       - When the token expires, the user is logged out and the step disappears.
+       - **Revisit** if the step shows up in practice.
      - No schema change is needed. `FirstName` and `LastName` are NOT NULL nvarchar(100) with no CHECK constraint, so `""` is valid. The UI's initials code handles empty strings.
    - Values from Google are trimmed and truncated to 100 characters (the column size).
    - Linking to an existing account never overwrites its name.
