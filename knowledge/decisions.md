@@ -827,6 +827,10 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
        - The sheet cannot be dismissed while saving.
      - **No "Forgot password?" link.** DoRent has no password reset. The design assumed one; it is deferred to the Trello card "Password reset" (High).
      - **Armenian strings** on the boards are drafts. They go through the native-speaker review card.
+   - **Amended 2026-10-11 (Tigran, after the first UI build):**
+     - **Google block on the Register tab only on step 1.** It is hidden on the home-point step and the "check your email" state, because by then the user has chosen password registration. The Sign in tab is unchanged. (This narrows "both tabs" above.)
+     - **Profile, no duplicated data.** The "Personal info" card's view mode shows Phone and Email only. The name is edited in the card's edit mode and shown in the profile identity header. The desktop identity card no longer lists Phone and Email.
+     - **Design message colours for the new messages only** (Google block, name/phone steps, Personal info card). This is an opt-in `.p-message.ui-msg--info|warn|error` in `Rental-Ui/src/styles.css`, with no global PrimeNG theme change. The hex values live there because no existing `--ui-color-*` token matches. Promote them to tokens if the palette is reused.
 10. **Google Cloud console:** the authorized JavaScript origins include `https://dorent.am` and `http://localhost:4200`. No client secret is needed.
 11. **Accepted residual risks.**
     - A 60-min JWT in `localStorage` with no CSP. Adding GIS barely changes the exposure; the only `bypassSecurityTrustHtml` (`icon.component.ts:82`) renders constant SVGs.
