@@ -918,3 +918,27 @@ Date: 2026-10-12 | Area: frontend / auth dialog, i18n, accessibility | Status: d
 - (b) **Leaving it** (close, switch, reopen). It loses the form state, and a first-time visitor who doesn't read English may not find the way.
 
 **Related:** ADR-030 §9 (Google button language), ADR-014.
+
+## ADR-033: PrimeNG's own strings follow the UI language; the DatePicker's month/year buttons are named by their visible text
+Date: 2026-10-12 | Area: frontend / i18n, dates, accessibility | Status: decided (Tigran)
+
+**Context.**
+- The app never passed the UI language to PrimeNG, so the booking calendar showed English month and day names (October; Mo Tu We…) in hy and ru.
+- The DatePicker's month and year buttons carry a static aria-label, "Choose Month" / "Choose Year". It does not contain the visible month or year (axe `label-content-name-mismatch`, WCAG 2.5.3), and it is English in every language.
+- PrimeNG's translation config takes only static strings, so no setting can put the dynamic month into the label.
+
+**Decision (Tigran, 2026-10-12).**
+1. **`chooseMonth` and `chooseYear` are set to empty strings** in `providePrimeNG({ translation })`. PrimeNG renders `aria-label=""`, which is ignored, so the buttons are named by their visible text. The "choose" hint is lost; a button labelled with the month in a calendar header is self-explanatory.
+2. **PrimeNG's locale strings follow the active UI language.** `LanguageService` is the single owner of the language (ADR-032), and it pushes them through `PrimeNG.setTranslation` on hydrate and on every switch.
+   - Month names (long and short) and day names (long, short and min) come from `Intl.DateTimeFormat` with `localeTagForLanguage(code)`. This is the precedent already used for distance formatting.
+   - Stand-alone month forms are used where the locale has them, so ru shows "Октябрь" in the header, not the genitive.
+   - No hand-written name arrays in the i18n JSON, so no native-speaker review is needed for these.
+   - `chooseMonth`/`chooseYear` stay empty in every language (point 1).
+3. **The first day of the week does not change** in this decision. It stays whatever PrimeNG uses today. Changing it is a separate product decision.
+
+**Rejected.**
+- (a) **Translated `chooseMonth`/`chooseYear` labels.** They are in the right language, but the accessible name still misses the visible text.
+- (b) **Overriding the DatePicker template**, or patching the attribute in the DOM. Fragile across PrimeNG upgrades.
+- (c) **Month and day names as arrays in i18n JSON.** They are hand-translated and unreviewed, and duplicate data the browser already has.
+
+**Related:** ADR-032 (`LanguageService` owns the language), ADR-031.
