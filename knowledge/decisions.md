@@ -930,15 +930,19 @@ Date: 2026-10-12 | Area: frontend / i18n, dates, accessibility | Status: decided
 **Decision (Tigran, 2026-10-12).**
 1. **`chooseMonth` and `chooseYear` are set to empty strings** in `providePrimeNG({ translation })`. PrimeNG renders `aria-label=""`, which is ignored, so the buttons are named by their visible text. The "choose" hint is lost; a button labelled with the month in a calendar header is self-explanatory.
 2. **PrimeNG's locale strings follow the active UI language.** `LanguageService` is the single owner of the language (ADR-032), and it pushes them through `PrimeNG.setTranslation` on hydrate and on every switch.
-   - Month names (long and short) and day names (long, short and min) come from `Intl.DateTimeFormat` with `localeTagForLanguage(code)`. This is the precedent already used for distance formatting.
-   - Stand-alone month forms are used where the locale has them, so ru shows "Октябрь" in the header, not the genitive.
-   - No hand-written name arrays in the i18n JSON, so no native-speaker review is needed for these.
+   - **Amended 2026-10-12 (Tigran), superseding the first version of this point.** Month names (long and short) and day names (long, short and min) live in the i18n files `public/i18n/{en,hy,ru}.json` under `calendar.*`. They are read through ngx-translate once the language's file has loaded.
+     - The first version took the names from `Intl.DateTimeFormat`. Implementation showed that Chrome (bundled Chromium and the stable channel) ships no Armenian ICU data. `Intl` for `hy` silently resolves to `en-US`, so the hy calendar stayed English in the most common browser. Only Edge returned Armenian.
+     - The i18n files give one path with the same result in every browser and deterministic tests. Names are edited like any other copy.
+     - The hy and ru names go to the native-speaker review card, like the rest of the hy copy.
+   - Stand-alone month forms, capitalised as PrimeNG's defaults are, so ru shows "Октябрь" in the header, not the genitive.
    - `chooseMonth`/`chooseYear` stay empty in every language (point 1).
 3. **The first day of the week does not change** in this decision. It stays whatever PrimeNG uses today. Changing it is a separate product decision.
 
 **Rejected.**
 - (a) **Translated `chooseMonth`/`chooseYear` labels.** They are in the right language, but the accessible name still misses the visible text.
 - (b) **Overriding the DatePicker template**, or patching the attribute in the DOM. Fragile across PrimeNG upgrades.
-- (c) **Month and day names as arrays in i18n JSON.** They are hand-translated and unreviewed, and duplicate data the browser already has.
+- (c) ~~Month and day names as arrays in i18n JSON.~~ Rejected at first, then **adopted** by the 2026-10-12 amendment of point 2.
+- (d) **`Intl.DateTimeFormat`** (the first version of point 2). Chrome has no Armenian locale data, so hy falls back to English.
+- (e) **`Intl` with an i18n fallback for hy only.** Two code paths, and en/ru would depend on each browser's ICU build.
 
 **Related:** ADR-032 (`LanguageService` owns the language), ADR-031.
