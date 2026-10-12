@@ -475,3 +475,16 @@ Date: 2026-10-11 | Area: agent tooling, file encoding
 **Rule:**
 - Agents edit files only with the Write/Edit tools, never with ad-hoc Python or PowerShell writers.
 - Before merging a diff that touches non-ASCII files, run `iconv -f UTF-8 -t UTF-8` over every changed file.
+
+## M-061: A late UI fix was shipped after unit tests only, and it broke six e2e journeys on main
+Date: 2026-10-12 | Area: verification discipline (orchestrator)
+**Symptom:**
+- Six mocked journeys in `Rental-Ui/e2e/auth-google.spec.ts` fail on `main`.
+- The legal-pages agent found it on 2026-10-12, by running the base commit as well.
+**Cause:**
+- The Google-button language fix (Rental-Ui `5f9a9f1`) reloads the GIS script and deletes `window.google.accounts` when the language changes.
+- That also deletes the e2e stub installed by `addInitScript`, so the stubbed button never renders.
+- The orchestrator pushed the fix after `ng build` + unit tests, plus Tigran's manual check in a real browser. It did not run `npm run e2e` or the fast-tier verifier. Tigran then merged it.
+**Rule:**
+- Every change after the full-tier pass, however small and however manually confirmed, gets at least the fast tier before it is pushed toward `main`, and the e2e suites of the area it touches.
+- "It works in a real browser" says nothing about the mocked tier.
