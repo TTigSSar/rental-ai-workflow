@@ -410,3 +410,68 @@ Date: 2026-10-09 | Area: infra (production deploy, ADR-027 Phase 0)
 - (a) Any deploy that changes a network's config is a full-stack recreate. Run it with `--force-recreate`, or follow it with a force-recreate of every service that kept its container. Then check `Aliases` and name resolution from inside a dependent container, not just "Up".
 - (b) A rehearsal must exercise the same paths the real deploy will take. If the real network has containers that won't change, the rehearsal must have one too.
 - (c) Before a HIGH-risk production deploy, Tigran is either present for the whole deploy or has pre-granted the specific recovery commands. A recovery path that needs a human approval nobody can give is not a recovery path.
+
+## M-056: The backend read a field the UI never sent, and every verification email went out in English
+Date: 2026-10-10 | Area: cross-repo contract (auth, email verification)
+**Symptom:** Tigran registered with the site in Armenian, and the verification email arrived in English. Every test was green: 951 backend, 1650 unit, 114 mocked e2e, 23 real-tier. Two reviews and a security review had passed.
+**Cause:**
+- ADR-028/029 said the email follows `PreferredLanguage`. The backend took it from `RegisterRequest.PreferredLanguage`, and its tests sent that field.
+- The Angular register form had never sent it. `LanguageService` persists a language switch only for signed-in users, so a signed-out sign-up reached the backend with null, and the email fell back to English.
+- Each side was tested against its own assumption. contract-guardian syncs shapes and does not check that an optional field is actually populated.
+**Fix:**
+- Rental-Ui `176fa2f`: the register payload carries `languageService.current().code`.
+- A unit test switches the UI to hy and expects `"hy"` in the payload.
+- The mocked e2e asserts the field on the captured POST body.
+**Rule:**
+- When a feature depends on an optional request field, trace it end to end in the plan: who writes it, where it is set, and which test proves the real client sends it.
+- An optional DTO field that only backend tests populate is untested from the user's side.
+
+## M-057: An ADR asserted "every write path checks IsBlocked" without anyone checking, and a reviewer relied on it
+Date: 2026-10-10 | Area: authorization (blocked users), ADR accuracy
+**Symptom:**
+- The first ADR-030 draft said every write path rejects a blocked caller, and a reviewer cited that line as evidence.
+- The plan review then found five write paths with no check:
+  - listing update, archive, restore and resubmit;
+  - chat conversation creation.
+- Reviews had the same gap and were fixed the same day (rental-api `8aa5210`).
+**Cause:** the sentence summarised a pattern ("services check IsBlocked") instead of a list that anyone verified. The ADR was then treated as a source of truth about the code.
+**Fix:**
+- rental-api `675462e` + `efe199e`: the checks, plus `BlockedUserWriteMatrixHttpTests`, one HTTP case per write route with the exact `errorCode`.
+- ADR-030 §11 now lists the paths and names the exceptions.
+**Rule:**
+- A security claim in an ADR about "all X" must point at the test that enumerates X.
+- If no such test exists, write the test first, then the sentence.
+
+## M-058: A verifier started the API without a launch profile, it ran as Production, and created a stray local database
+Date: 2026-10-10 | Area: local tooling (agents running the API)
+**Symptom:** `RentalPlatformDb` appeared on Tigran's local SQL Server next to `RentalPlatformDbDev`.
+**Cause:**
+- `dotnet run --launch-profile https` named a profile that does not exist, so the host fell back to Production.
+- In Production it used the production database name and migrated it.
+- The agent's attempt to drop it was rightly denied.
+**Fix:** Tigran approved the drop. It held only migration seed data (categories and districts) and no users.
+**Rule:**
+- Agents start the API locally only with `ASPNETCORE_ENVIRONMENT=Development dotnet run --no-launch-profile`, plus a throwaway `Jwt__SecretKey` env var.
+- Never start it in Production locally.
+- Any database or file an agent creates by accident is reported, not silently deleted.
+
+## M-059: A live UI check sent a real POST and created a booking in the dev database
+Date: 2026-10-10 | Area: verification hygiene
+**Symptom:** frontend-dev's first live booking run created a real Pending booking in `RentalPlatformDbDev`, with its notification and chat rows. The agent deleted them by hand.
+**Cause:** the live walk did not mock the write before submitting. The phone gate was being tested against the real API.
+**Rule:**
+- Live walks against Tigran's dev database mock every create POST at the network layer, or stop before submit.
+- When a server-side refusal is the thing under test, the walk must prove the 409 arrives before any write, and must count rows before and after.
+
+## M-060: A Python helper wrote cp1252 bytes into TypeScript sources
+Date: 2026-10-11 | Area: agent tooling, file encoding
+**Symptom:** a comment in `google-sign-in-block.component.ts` and `auth.state.ts` contained invalid UTF-8 bytes (0x97 for "—", 0xA7 for "§").
+- Build and tests were green.
+- A grep for U+FFFD found nothing, because the bytes were not a replacement character but invalid UTF-8.
+**Cause:** the agent edited files with a small Python script using the Windows default encoding (cp1252).
+**Fix:**
+- Rental-Ui `5522cd4`.
+- A whole-diff `iconv -f UTF-8 -t UTF-8` check found no other invalid files. The hy and ru i18n files were intact, with BOM and CRLF preserved.
+**Rule:**
+- Agents edit files only with the Write/Edit tools, never with ad-hoc Python or PowerShell writers.
+- Before merging a diff that touches non-ASCII files, run `iconv -f UTF-8 -t UTF-8` over every changed file.
