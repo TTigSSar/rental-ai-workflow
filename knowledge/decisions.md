@@ -883,3 +883,38 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
 - (m) **httpOnly cookies or a BFF now.** They bring CSRF handling and refresh tokens into scope.
 
 **Related:** ADR-014, ADR-024 (home-point gate pattern), ADR-027 (client IP), ADR-028 (§2 and §10 amended by point 4), M-013, M-016, M-056.
+
+## ADR-031: White text never sits on the brand orange #ff6008 — text-bearing fills use a darker shade that meets WCAG AA
+Date: 2026-10-12 | Area: frontend / design tokens, accessibility | Status: decided (Tigran); exact shade and token set pending Claude Design
+
+**Context.** An axe pass during Google sign-in v1 measured white text on the primary orange `#ff6008` at **3.03:1**. WCAG AA requires 4.5:1 for normal text, and 3:1 only for large text (≥ 24 px, or ≥ 18.66 px bold). Primary buttons, badges and other white-on-orange fills fail it. The orange is defined in `Rental-Ui/src/app/app.config.ts` (PrimeNG `primary.500`) and `--ui-color-primary` in `src/styles.css`. Several components also hard-code it as a `var(..., #ff6008)` fallback.
+
+**Decision (Tigran, 2026-10-12).**
+- `#ff6008` stays the brand colour for accents: icons, borders, focus rings, links on white, map pins, and orange-tinted backgrounds that carry dark text.
+- **Any fill that carries white text** (primary buttons, solid badges, counters) uses a darker shade with ≥ 4.5:1 against white. The working candidate is `#cc4a00` (4.62:1). Measured alternatives: `#d94f00` 4.14 (fails), `#c24600` 5.04.
+- The shade, its hover and active states, and the token name (for example `--ui-color-primary-strong`) are chosen in a Claude Design pass **before** implementation. This ADR is then amended with the final values.
+- Hard-coded `#ff6008` fallbacks on text-bearing fills move to the token in the same change.
+
+**Rejected.**
+- (a) **Darken the whole brand to `#cc4a00`.** It is the simplest token change, but it makes the whole site visibly browner, including accents that pass today.
+- (b) **Dark text on orange (6.23:1).** It passes, but it changes the look of every call to action.
+- (c) **Accept 3.03:1 as a residual risk.** The failing elements are the primary actions, the very text a low-vision user most needs to read.
+
+**Related:** ADR-014 (the design owns form), ADR-030 §9 (message colours kept local in `styles.css`).
+
+## ADR-032: The auth dialog stays a true modal; language is switched from inside it
+Date: 2026-10-12 | Area: frontend / auth dialog, i18n, accessibility | Status: decided (Tigran); placement pending Claude Design
+
+**Context.** While the auth dialog is open, its modal mask covers the header language selector. A click on the selector lands on the mask, which closes the dialog, so a user cannot switch language while signing in. This matters more since ADR-030 §9: the Google button's language follows the UI language (`hl`).
+
+**Decision (Tigran, 2026-10-12).**
+- The dialog keeps full modal semantics: `aria-modal`, a focus trap, and the mask.
+- A compact language switch lives **inside** the dialog. It reuses `LanguageService` (the single owner of the active language) and the existing language options. It does not add a second source of truth.
+- Placement and form (for example the dialog header next to close, or a footer row) come from a Claude Design pass before implementation.
+- Switching language inside the dialog must keep the user's typed input and the active tab. The Google button re-renders per ADR-030 §9.
+
+**Rejected.**
+- (a) **Lifting the header selector above the mask** (z-index). It puts an operable control outside an `aria-modal` dialog, breaks the focus trap, and conflicts with mask-click-to-close.
+- (b) **Leaving it** (close, switch, reopen). It loses the form state, and a first-time visitor who doesn't read English may not find the way.
+
+**Related:** ADR-030 §9 (Google button language), ADR-014.
