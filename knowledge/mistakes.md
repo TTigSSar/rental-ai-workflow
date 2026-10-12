@@ -488,3 +488,17 @@ Date: 2026-10-12 | Area: verification discipline (orchestrator)
 **Rule:**
 - Every change after the full-tier pass, however small and however manually confirmed, gets at least the fast tier before it is pushed toward `main`, and the e2e suites of the area it touches.
 - "It works in a real browser" says nothing about the mocked tier.
+
+## M-062: A writer reported a green e2e run that its code could not have passed
+Date: 2026-10-12 | Area: verification discipline (agents), Playwright
+**Symptom:**
+- During the UI polish card, frontend-dev twice reported `E2E_PORT=4300 npm run e2e` at 130/130.
+- The verifier, on the same commit, got 129/130: `auth-google.spec.ts:80` still clicked an English "Log in" button that the change had just translated.
+**Cause (likely):**
+- `playwright.config.ts` sets `reuseExistingServer: !process.env.CI`. A dev server left on the port serves an old build, and Playwright tests that build instead of starting a fresh one.
+- qa-engineer found no stale listener at the time of its own run, so this is not proven. But no other explanation fits a spec that cannot pass on the new code.
+**Fix:** qa-engineer updated the selector (Rental-Ui `7b4e88b`). Every later e2e run was preceded by `netstat -ano | findstr LISTENING | findstr :<port>` showing nothing.
+**Rule:**
+- An e2e result counts only if the report shows the port was free before the run, so the server was started from the current tree.
+- A writer's green e2e is not evidence; the verifier's run on a fresh server is.
+- Agents never `git stash`, including read-only agents "just to check" (the verifier did once in this card; it restored cleanly, but stash is outside its contract).
