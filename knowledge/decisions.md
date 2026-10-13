@@ -965,3 +965,30 @@ Date: 2026-10-12 | Area: frontend / i18n, dates, accessibility | Status: decided
 - (e) **`Intl` with an i18n fallback for hy only.** Two code paths, and en/ru would depend on each browser's ICU build.
 
 **Related:** ADR-032 (`LanguageService` owns the language), ADR-031.
+
+## ADR-034: Every text colour meets WCAG AA; failing semantic colours are darkened minimally in their own hue
+Date: 2026-10-13 | Area: frontend / design tokens, accessibility | Status: decided (Tigran)
+
+**Context.** After ADR-031 fixed the orange, the axe sweep still failed on other colours:
+- footer text on grey (2.27–3.46);
+- secondary grey `#908f9c` (3.0–3.18);
+- `#64748b` on `#faf8f4` (4.48);
+- the green `#0e8a5f` on tints and under white text (3.84–4.35);
+- the blue `#4a5fe3` on `#e8eaff` (4.37);
+- the amber `#d97706` (3.13–3.18);
+- the calendar weekday labels `#b5b6b7` (2.03).
+
+**Decision (Tigran, 2026-10-13: "fix it in this session").**
+- **Text needs ≥ 4.5:1** against its actual background, and **non-text** needs ≥ 3:1. **Disabled controls are exempt**, which covers the calendar's disabled days and the neutral disabled button from ADR-031.
+- A failing colour is fixed by **darkening it in its own hue, by the smallest step that passes**. The fix goes in the shared token or variable, not in per-component overrides. Backgrounds and tints change only where darkening the text cannot reach the target, as with the footer.
+- This is a colour-only change; no layout or form changes (ADR-014).
+- The orange tokens stay as ADR-031 sets them.
+- The values chosen are listed below once implemented. New colours must pass the same rule before they are merged.
+
+**Values.** Pending implementation; filled in by the change that applies them.
+
+**Rejected.**
+- (a) **A separate design pass for each colour.** The steps are mechanical, and the look barely changes.
+- (b) **Accepting the failures as residual risk.** Most of them are small, cheap fixes.
+
+**Related:** ADR-031, ADR-014.
