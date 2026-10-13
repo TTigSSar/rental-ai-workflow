@@ -885,7 +885,7 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
 **Related:** ADR-014, ADR-024 (home-point gate pattern), ADR-027 (client IP), ADR-028 (§2 and §10 amended by point 4), M-013, M-016, M-056.
 
 ## ADR-031: White text never sits on the brand orange #ff6008 — text-bearing fills use a darker shade that meets WCAG AA
-Date: 2026-10-12 | Area: frontend / design tokens, accessibility | Status: decided (Tigran); exact shade and token set pending Claude Design
+Date: 2026-10-12, amended 2026-10-13 | Area: frontend / design tokens, accessibility | Status: decided (Tigran); final values from Claude Design, see the amendment
 
 **Context.** An axe pass during Google sign-in v1 measured white text on the primary orange `#ff6008` at **3.03:1**. WCAG AA requires 4.5:1 for normal text, and 3:1 only for large text (≥ 24 px, or ≥ 18.66 px bold). Primary buttons, badges and other white-on-orange fills fail it. The orange is defined in `Rental-Ui/src/app/app.config.ts` (PrimeNG `primary.500`) and `--ui-color-primary` in `src/styles.css`. Several components also hard-code it as a `var(..., #ff6008)` fallback.
 
@@ -894,6 +894,25 @@ Date: 2026-10-12 | Area: frontend / design tokens, accessibility | Status: decid
 - **Any fill that carries white text** (primary buttons, solid badges, counters) uses a darker shade with ≥ 4.5:1 against white. The working candidate is `#cc4a00` (4.62:1). Measured alternatives: `#d94f00` 4.14 (fails), `#c24600` 5.04.
 - The shade, its hover and active states, and the token name (for example `--ui-color-primary-strong`) are chosen in a Claude Design pass **before** implementation. This ADR is then amended with the final values.
 - Hard-coded `#ff6008` fallbacks on text-bearing fills move to the token in the same change.
+
+**Amended 2026-10-13 (Tigran), after the Claude Design board "Contrast · Strong Orange"** (project `df24299b…`, file `Contrast · Strong Orange.html`).
+- **Tokens**, next to the unchanged `--ui-color-primary: #ff6008`:
+  - `--ui-color-primary-strong: #c24600`: 5.04:1 with white, and 4.75 as text on the `#faf8f4` page background.
+  - `--ui-color-primary-strong-hover: #a83c00` (6.34).
+  - `--ui-color-primary-strong-active: #943300` (7.68).
+- **Why `#c24600` and not the working candidate `#cc4a00`.** `#cc4a00` passes on white (4.62) but fails as text on `#faf8f4` (4.35). `#b84200` reads brown next to `#ff6008`.
+- **Disabled** keeps the existing neutral style (`#f4f4f8` fill, `#b5b6b7` text). WCAG exempts disabled controls.
+- **Icon-only orange fills stay `#ff6008`.** This covers the logo tile and the mobile tab-bar "+". They carry an icon or a logotype, not text: 3.03 meets the 3:1 non-text rule, and logotypes are exempt.
+- **Links: narrows the first bullet above.** Orange **text** on white or light backgrounds uses `--ui-color-primary-strong`, for example "Sign in" and "Message Anna" at 14/700. The board measured `#ff6008` links at 3.03:1, which fails 4.5:1. The rule is now: **orange text, or white text on orange, is strong; orange non-text** (icons, borders, radio dots, pins, tints) **stays `#ff6008`**.
+- **Focus ring: deviates from the board.** The board kept a `#ff6008` ring, which measures 2.86 on `#faf8f4` and fails 3:1. The ring is a 2 px white gap, then 2 px of `#c24600` (4.75 on `#faf8f4`).
+- **Out of scope, flagged by the board.** In the design files, soft buttons and active tabs use `#e5530a` text on `#ffeedc`. If Rental-Ui does the same, it fails 4.5:1. This change measures and reports it; it does not fix it.
+- **Amended again 2026-10-13 (Tigran), after implementation (Rental-Ui `89838c6`):**
+  - **Orange text on a light orange tint uses `--ui-color-primary-strong-hover` (`#a83c00`).** This supersedes the "measure only" bullet above. Eight nodes measured 4.33–4.49 with `#c24600` (on `#ffeedc`, `#ffece1`, `#f4ede5` and `#ffefe6`). With `#a83c00` they measure 5.46–5.66. The tints stay as they are.
+  - **Disabled primary controls use the neutral style** (`#f4f4f8` fill, `#b5b6b7` text), as on the board. Rental-Ui previously used a pale orange (`--ui-color-primary-disabled: #f4cfb7`, white text).
+  - **The 2 px white + 2 px strong focus ring applies app-wide** through `--ui-focus-ring` (about 60 uses). It replaces the old `rgba(255,96,8,.18)` halo, which was far below 3:1.
+  - **`--ui-color-primary-strong` already existed** as `#e5530a`, and was redefined to `#c24600`. Its non-text uses became slightly darker and are accepted: the rating stars in listing cards and map popups, and the active-indicator bars.
+  - **The notification filter tabs keep their current form.** The active tab is dark with a light count, while the board drew it orange. This change is colour-only (ADR-014).
+  - **Avatar initials** (white text on orange gradients) are deferred to a separate Low card. axe cannot measure gradients, and the board does not cover them.
 
 **Rejected.**
 - (a) **Darken the whole brand to `#cc4a00`.** It is the simplest token change, but it makes the whole site visibly browner, including accents that pass today.

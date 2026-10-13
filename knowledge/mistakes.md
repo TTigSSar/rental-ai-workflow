@@ -502,3 +502,15 @@ Date: 2026-10-12 | Area: verification discipline (agents), Playwright
 - An e2e result counts only if the report shows the port was free before the run, so the server was started from the current tree.
 - A writer's green e2e is not evidence; the verifier's run on a fresh server is.
 - Agents never `git stash`, including read-only agents "just to check" (the verifier did once in this card; it restored cleanly, but stash is outside its contract).
+
+## M-063: The orchestrator edited backlog.json through a shell one-liner, and the shell ate the backticks
+Date: 2026-10-13 | Area: agent tooling (orchestrator)
+**Symptom:** a new Trello card's description lost every class name written in Markdown backticks (`` `.ui-avatar` `` and others). The shell printed `.ui-avatar: command not found` for each one.
+**Cause:**
+- The orchestrator rewrote `tools/trello-sync/backlog.json` with `node -e "..."` inside double quotes.
+- Bash ran each backtick span as a command substitution and inserted its empty output.
+- This also broke M-060's rule: files are edited only with Write/Edit.
+**Fix:** `git checkout -- tools/trello-sync/backlog.json` before any sync, then the edit was redone with the Edit tool (outer `4d06fb1`). Nothing reached Trello.
+**Rule:**
+- M-060 applies to the orchestrator too: Write/Edit only, for every file, including JSON data files.
+- Removing a long backlog item with Edit is tedious but correct. A shell writer is not an acceptable shortcut.
