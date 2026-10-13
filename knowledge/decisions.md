@@ -1003,6 +1003,15 @@ Date: 2026-10-13 | Area: frontend / design tokens, accessibility | Status: decid
 - Notification kinds change only their `strong` (text and fill) colour. Their `color` (dots and icons, non-text) is unchanged.
 - The disabled calendar days (`#dededf`) stay as they are, because disabled controls are exempt.
 
+**Amended 2026-10-13 (Tigran), after the before/after screenshots.**
+- **Amber and yellow fills keep their bright colour and carry dark text.** This replaces darkening the fill:
+  - pickup/return amber fill `#d97706` with `#1a1b26` text and icon: 5.36;
+  - review yellow fill `#e39a00` with `#1a1b26`: 7.23.
+  - The darkened fills (`#a75c05`, `#956500`) passed with white text, but they read as brown and olive.
+  - Amber and yellow **text on a light background** (pills, the chat toy title) keeps the darkened values from the table above.
+  - Rule: **on a light, warm fill (amber, yellow), the text is dark rather than the fill being darkened.**
+- **Decorative glyphs are not text for this rule** when they are `aria-hidden` and carry no information, for example the `·` separator in notification meta (2.71:1). WCAG sets no requirement for pure decoration.
+
 **Rejected.**
 - (a) **A separate design pass for each colour.** The steps are mechanical, and the look barely changes.
 - (b) **Accepting the failures as residual risk.** Most of them are small, cheap fixes.
