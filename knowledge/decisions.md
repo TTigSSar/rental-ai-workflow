@@ -906,6 +906,13 @@ Date: 2026-10-12, amended 2026-10-13 | Area: frontend / design tokens, accessibi
 - **Links: narrows the first bullet above.** Orange **text** on white or light backgrounds uses `--ui-color-primary-strong`, for example "Sign in" and "Message Anna" at 14/700. The board measured `#ff6008` links at 3.03:1, which fails 4.5:1. The rule is now: **orange text, or white text on orange, is strong; orange non-text** (icons, borders, radio dots, pins, tints) **stays `#ff6008`**.
 - **Focus ring: deviates from the board.** The board kept a `#ff6008` ring, which measures 2.86 on `#faf8f4` and fails 3:1. The ring is a 2 px white gap, then 2 px of `#c24600` (4.75 on `#faf8f4`).
 - **Out of scope, flagged by the board.** In the design files, soft buttons and active tabs use `#e5530a` text on `#ffeedc`. If Rental-Ui does the same, it fails 4.5:1. This change measures and reports it; it does not fix it.
+- **Amended again 2026-10-13 (Tigran), after implementation (Rental-Ui `89838c6`):**
+  - **Orange text on a light orange tint uses `--ui-color-primary-strong-hover` (`#a83c00`).** This supersedes the "measure only" bullet above. Eight nodes measured 4.33–4.49 with `#c24600` (on `#ffeedc`, `#ffece1`, `#f4ede5` and `#ffefe6`). With `#a83c00` they measure 5.46–5.66. The tints stay as they are.
+  - **Disabled primary controls use the neutral style** (`#f4f4f8` fill, `#b5b6b7` text), as on the board. Rental-Ui previously used a pale orange (`--ui-color-primary-disabled: #f4cfb7`, white text).
+  - **The 2 px white + 2 px strong focus ring applies app-wide** through `--ui-focus-ring` (about 60 uses). It replaces the old `rgba(255,96,8,.18)` halo, which was far below 3:1.
+  - **`--ui-color-primary-strong` already existed** as `#e5530a`, and was redefined to `#c24600`. Its non-text uses became slightly darker and are accepted: the rating stars in listing cards and map popups, and the active-indicator bars.
+  - **The notification filter tabs keep their current form.** The active tab is dark with a light count, while the board drew it orange. This change is colour-only (ADR-014).
+  - **Avatar initials** (white text on orange gradients) are deferred to a separate Low card. axe cannot measure gradients, and the board does not cover them.
 
 **Rejected.**
 - (a) **Darken the whole brand to `#cc4a00`.** It is the simplest token change, but it makes the whole site visibly browner, including accents that pass today.
