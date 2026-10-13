@@ -985,7 +985,23 @@ Date: 2026-10-13 | Area: frontend / design tokens, accessibility | Status: decid
 - The orange tokens stay as ADR-031 sets them.
 - The values chosen are listed below once implemented. New colours must pass the same rule before they are merged.
 
-**Values.** Pending implementation; filled in by the change that applies them.
+**Values** (Rental-Ui `c00562b`).
+
+| Colour / token | Was | Now | Worst case after |
+|---|---|---|---|
+| `--ui-color-footer` (background) | `#7b7a7a` | `#5c5b5b` | links white α.92 6.05, headings α.78 4.89 |
+| `--ui-color-text-hint` | `#908f9c` | `#6f6e7d` | 4.71 on `#faf8f4` |
+| notifications group label | `#64748b` | `#63738a` | 4.55 on `#faf8f4` |
+| success green (`--ui-color-success`, `--dash-success`) | `#0e8a5f` | `#0d7d56` | 4.54 on `#e6f4ee` |
+| blue (`--dash-blue`, message pill) | `#4a5fe3` | `#465ce2` | 4.54 on `#e8eaff` |
+| amber (`--dash-warn`, `--chat-warn`, `--note-warn`) | `#d97706` | `#a75c05` | 4.52 on `#fff1dc` |
+| danger (`--ui-color-danger`) | `#d9342b` | `#cc2d25` | 4.63 on `#fdecea` |
+| notification "review" yellow (text and fills) | `#e39a00` | `#956500` | 4.52 on `#fcf1d8` |
+| calendar weekday and date-box labels | `#b5b6b7` | `--ui-color-text-hint` | 5.00 |
+
+- The footer could not pass by darkening its text alone: pure white on `#7b7a7a` measures only 4.23. So its background moved, and the headings now sit closer in weight to the links.
+- Notification kinds change only their `strong` (text and fill) colour. Their `color` (dots and icons, non-text) is unchanged.
+- The disabled calendar days (`#dededf`) stay as they are, because disabled controls are exempt.
 
 **Rejected.**
 - (a) **A separate design pass for each colour.** The steps are mechanical, and the look barely changes.
