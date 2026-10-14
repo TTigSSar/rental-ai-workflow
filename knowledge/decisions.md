@@ -1025,3 +1025,46 @@ Date: 2026-10-13 | Area: frontend / design tokens, accessibility | Status: decid
 - (b) **Accepting the failures as residual risk.** Most of them are small, cheap fixes.
 
 **Related:** ADR-031, ADR-014.
+
+## ADR-035: Password reset by an emailed link — a 30-minute single-use token in the URL fragment, always 202, verified accounts only, its own per-recipient cap and rate limit; issued JWTs are not revoked
+Date: 2026-10-14 | Status: accepted | Area: auth surface, API contract, transactional email | Approved by Tigran 2026-10-14 (decisions 1–9) | Trello TLnsDdZx
+
+**Context:**
+- DoRent has no way to recover a forgotten password. ADR-005, ADR-020 and ADR-021 §6 accepted the gap while no email went out.
+- Since ADR-028/029 the building blocks exist: `UserTokens` (hashed, `Purpose`-keyed, revoke-not-delete), the Resend transport, the global send budget, per-IP rate limiting (ADR-027) and the token-in-fragment link.
+- ADR-030 sends a user with an email conflict to "sign in with your password", and the Google sign-in design places a "Forgot password?" link that is hidden until this ships.
+
+**Decision:**
+1. **A link, not a code.**
+   - Link: `{App:PublicBaseUrl}/auth/reset-password#token=…`. The page strips the fragment at once, keeps the token in component memory only, and posts only when the user submits (ADR-028 §6).
+   - `POST /api/auth/forgot-password { email, preferredLanguage }` → always **202**.
+   - `POST /api/auth/reset-password { token, newPassword }` → **200 `AuthResponse`** (auto-login), issued only after the commit and built from the freshly re-read user, like verify-email.
+   - `newPassword` follows the creation rule of ADR-021 (amended 2026-09-27): 8 characters minimum, at most 72 UTF-8 bytes, `auth.password_too_long` from the service, not a DataAnnotation.
+   - Auto-login adds no risk: whoever holds the link can set the password anyway.
+2. **Token.**
+   - New `TokenPurpose.PasswordReset = 2`. Explicit, never reused (ADR-028 §11). The column is an int, so **no migration**.
+   - 32 bytes from a CSPRNG, base64url, only the SHA-256 stored; lookups match `TokenHash` **and** `Purpose`.
+   - **TTL 30 minutes, single use.** A new request revokes the previous live reset token (the filtered unique index requires one live token per user and purpose).
+   - Cooldown 60 s per user, measured from the last reset token's `CreatedAt`, enforced by a conditional revoke, as ADR-028 §7.
+   - An expired token → 400 `auth.reset_token_expired`; any other invalid, revoked or consumed token → 400 `auth.reset_token_invalid`.
+   - Atomicity follows ADR-028 R1: lock order `Users` → `UserTokens`, the write logic in an Infrastructure store, one transaction that updates the password conditionally on `IsBlocked = 0 AND IsEmailConfirmed = 1` and consumes the token conditionally on `ConsumedAt IS NULL AND ExpiresAt > @now`; both must affect exactly one row, otherwise roll back.
+3. **A reset does NOT revoke JWTs already issued**, the same limitation as ADR-021 §5: `User` has no security stamp and tokens carry no `jti`, so a stolen token survives the reset for the rest of its lifetime (at most 60 minutes, `AccessTokenExpirationMinutes`). Never describe the reset as "signing out other devices". Revocation is carded separately: Trello hbprFg3q (High).
+4. **Verified accounts only.** For an unverified (pending) account the request answers 202 and sends nothing, and the reset endpoint refuses its tokens. A reset never verifies a pending registration: that would keep the squatter's phone, name and home point that the ADR-028 §2 replacement wipes. The pending user re-registers or uses resend-verification.
+5. **External-only users may set a first password.** A Google-only account (`PasswordHash = ""`) can use the flow; mailbox ownership is the same proof registration relies on, and it gives that user a fallback login. `auth.password_not_set` on `PUT /api/auth/me/password` is unchanged.
+6. **Anti-enumeration: always 202.** Unknown, blocked, unverified, over-cap and budget-exhausted emails all answer 202 with nothing sent. The send happens inside the request, so response timing can reveal that an account exists. Accepted, as the existing 409 on register already enumerates (ADR-028 D6).
+7. **Budgets.**
+   - The **global send budget is shared** with verification email (one Resend quota, ADR-029 amendment of 2026-10-09). Exhausted → 202, nothing sent, Critical log.
+   - The **per-recipient cap is separate**: at most 5 reset emails per recipient per 24 h, counted over reset-purpose tokens only. A shared cap would let whoever squats an address with re-registrations block its owner's reset as well.
+8. **Rate limit:** a new per-IP policy `password-reset`, 5 requests/minute, one bucket shared by both endpoints. Separate from `auth` and `email-verification` (ADR-021 §4 precedent).
+9. **Email language:** `preferredLanguage` from the request, which the client fills with the current UI language; then `User.PreferredLanguage`; then English (ADR-025, ADR-029 §4). The body carries no user-controlled data (ADR-028 §12). Per M-056 a client test proves the field is actually sent.
+10. **Production email gate (ADR-028 §9) applies:** when email is not configured in Production, forgot-password answers 503 `auth.registration_unavailable`'s sibling `auth.password_reset_unavailable`.
+
+**Rejected:**
+- (a) **A 6-digit code.** Needs its own brute-force protection; the link is the established precedent (ADR-028 Rejected (d)).
+- (b) **A 24-hour TTL like verification.** A reset link is a credential; a short window limits a leaked mailbox or a forwarded mail.
+- (c) **Revoking JWTs in this change.** Needs a schema change and a check on every authenticated request; carded separately (hbprFg3q).
+- (d) **A reset that also verifies a pending account.** Breaks the ADR-028 pending-replacement model (see 4).
+- (e) **Sharing the per-recipient cap with verification.** Turns the accepted verification squat (ADR-029, 2026-10-09) into a reset lockout.
+- (f) **Admin-initiated reset only, no email.** Does not scale and puts an operator in every recovery.
+
+**Related:** ADR-005, ADR-020, ADR-021, ADR-025, ADR-027, ADR-028, ADR-029, ADR-030, M-013, M-016, M-056.
