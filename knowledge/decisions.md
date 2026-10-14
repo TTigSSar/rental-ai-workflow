@@ -1057,7 +1057,7 @@ Date: 2026-10-14 | Status: accepted | Area: auth surface, API contract, transact
    - The **per-recipient cap is separate**: at most 5 reset emails per recipient per 24 h, counted over reset-purpose tokens only. A shared cap would let whoever squats an address with re-registrations block its owner's reset as well.
 8. **Rate limit:** a new per-IP policy `password-reset`, 5 requests/minute, one bucket shared by both endpoints. Separate from `auth` and `email-verification` (ADR-021 §4 precedent).
 9. **Email language:** `preferredLanguage` from the request, which the client fills with the current UI language; then `User.PreferredLanguage`; then English (ADR-025, ADR-029 §4). The body carries no user-controlled data (ADR-028 §12). Per M-056 a client test proves the field is actually sent.
-10. **Production email gate (ADR-028 §9) applies:** when email is not configured in Production, forgot-password answers 503 `auth.registration_unavailable`'s sibling `auth.password_reset_unavailable`.
+10. **Production email gate (ADR-028 §9) — PENDING Tigran, not part of the 2026-10-14 approval.** Proposed: when email is not configured in Production, forgot-password answers 503 `auth.password_reset_unavailable` instead of a silent 202, as register and resend do.
 
 **Rejected:**
 - (a) **A 6-digit code.** Needs its own brute-force protection; the link is the established precedent (ADR-028 Rejected (d)).
