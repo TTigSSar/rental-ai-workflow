@@ -922,7 +922,7 @@ Date: 2026-10-12, amended 2026-10-13 | Area: frontend / design tokens, accessibi
 **Related:** ADR-014 (the design owns form), ADR-030 §9 (message colours kept local in `styles.css`).
 
 ## ADR-032: The auth dialog stays a true modal; language is switched from inside it
-Date: 2026-10-12 | Area: frontend / auth dialog, i18n, accessibility | Status: decided (Tigran); placement pending Claude Design
+Date: 2026-10-12 | Area: frontend / auth dialog, i18n, accessibility | Status: **WITHDRAWN 2026-10-14 (Tigran)**: the in-dialog switch will not be built; see the withdrawal note at the end of this ADR
 
 **Context.** While the auth dialog is open, its modal mask covers the header language selector. A click on the selector lands on the mask, which closes the dialog, so a user cannot switch language while signing in. This matters more since ADR-030 §9: the Google button's language follows the UI language (`hl`).
 
@@ -937,6 +937,14 @@ Date: 2026-10-12 | Area: frontend / auth dialog, i18n, accessibility | Status: d
 - (b) **Leaving it** (close, switch, reopen). It loses the form state, and a first-time visitor who doesn't read English may not find the way.
 
 **Related:** ADR-030 §9 (Google button language), ADR-014.
+
+**Withdrawn 2026-10-14 (Tigran).** The in-dialog language switch is not built.
+- **Why:**
+  - The auth dialog never opens on its own. It opens only after a click on a page the user already sees: the header Log in / Sign up, a favourite heart, or a booking action. So the user meets the page's language before the dialog, and the header selector is available to guests on desktop and mobile.
+  - A user who opens the dialog in the wrong language closes it, switches, and reopens. The cost is only the input they had started typing.
+  - Building the switch meant a design pass, a selector inside a focus-trapped modal, a Google button re-render, and tests, all for that rare case.
+- **The underlying cause is addressed elsewhere.** A first-time visitor always lands in English, because `LanguageService.resolveInitial()` falls back to the first language when nothing is stored and ignores the browser's language. That is the Trello card "First visit: UI language from the browser (hy/ru), fallback English", which needs its own ADR.
+- The modal behaviour described above (aria-modal, focus trap, mask) is unchanged and remains how the dialog works.
 
 ## ADR-033: PrimeNG's own strings follow the UI language; the DatePicker's month/year buttons are named by their visible text
 Date: 2026-10-12 | Area: frontend / i18n, dates, accessibility | Status: decided (Tigran)
