@@ -1121,3 +1121,24 @@ Date: 2026-10-16 | Status: accepted | Decided by: Tigran | Area: architecture / 
 - The unit tests construct `SqlException` by reflection over SqlClient internals, so a SqlClient upgrade may break the test helper, not the product.
 
 **Related:** M-005, ADR-022 (the same race, one layer out, in CI).
+
+## ADR-038: A first visit takes the UI language from the browser (hy/ru), otherwise English; the detected language is not stored
+Date: 2026-10-16 | Status: accepted — implemented autonomously on Tigran's instruction ("take the card fully autonomously, no questions"), following the card's own recommendations point by point; **awaiting Tigran's explicit confirmation of points 1–4 before the PR to `main` is merged** | Area: frontend / i18n (cross-cutting default language)
+
+**Context.** `LanguageService.resolveInitial()` took the language stored in localStorage (`stayfinder.lang`) and otherwise fell back to the first entry of `LANGUAGES`, which is `en`. The browser's language was never consulted, so every first-time visitor in Yerevan landed in English. That was the underlying cause of the withdrawn ADR-032 problem (a user who did not notice the selector opens the auth dialog in a language they do not read).
+
+**Decision:**
+1. **Source and matching.** `navigator.languages` (or `navigator.language` when the list is unavailable) is walked **in the browser's order**. The first entry whose primary subtag (case-insensitive, before `-`/`_`) is `hy`, `ru` or `en` decides: `hy-AM` → hy, `ru-RU` → ru, `en-US` → en. Entries in other languages are skipped. If nothing matches, English. So `[en-US, ru]` → **en**: the browser's order is respected, an earlier English beats a later Russian.
+2. **Precedence:** an explicit choice stored in localStorage → (after login) the signed-in user's server `PreferredLanguage` via `applyFromUser()`, unchanged → the browser → English.
+3. **Persistence.** The detected language is **not** written to localStorage. Only an explicit choice (`use()`, or a server preference applied by `applyFromUser()`, which already stored it) is persisted. Trade-off accepted: a visitor who never picks a language follows their browser's language if it changes later; they have to pick once to pin it.
+4. **Registration.** The detected language is the current UI language, so registration and Google sign-up send it as `preferredLanguage` (ADR-030 §6, M-056) like any other current language. The verification email and the new account's preference follow the detected language. After sign-up the server value comes back through `applyFromUser()` and is stored from then on.
+5. **Crawlers and link previews** are unchanged: the app is a client-only SPA with no SSR and no hreflang; crawlers usually report `en` and keep seeing English. `index.html` keeps `<html lang="en">` until `hydrate()` sets the detected value.
+6. **Testability.** The browser languages reach the service through an injection token (`BROWSER_LANGUAGES`) whose default factory reads `navigator`, never `navigator` directly in the service, so unit specs set them.
+
+**Rejected:**
+- (a) **Store the detected language on first visit.** Freezes a guess as if it were a choice; a later browser change would be ignored.
+- (b) **hy/ru anywhere in the list beats an earlier en** (e.g. `[en-US, ru]` → ru). Overrides a preference the visitor expressed explicitly in their browser settings.
+- (c) **Geo-IP or a fixed Armenian default for everyone.** Needs a server or a third party, and ignores visitors who read English or Russian.
+- (d) **Asking on first visit (a language picker splash).** Adds a blocking step to every first visit; the header selector already exists.
+
+**Related:** ADR-030 §6 and §9, ADR-032 (withdrawn — this is the cause its withdrawal note points to), ADR-033, M-056.
