@@ -1075,3 +1075,20 @@ Date: 2026-10-14 | Status: accepted | Area: auth surface, API contract, transact
 - (f) **Admin-initiated reset only, no email.** Does not scale and puts an operator in every recovery.
 
 **Related:** ADR-005, ADR-020, ADR-021, ADR-025, ADR-027, ADR-028, ADR-029, ADR-030, M-013, M-016, M-056.
+
+## ADR-036: A switch to another user without a logout behaves like logout + login — realtime and pollers follow the user id, and every non-auth store slice is reset
+Date: 2026-10-14 | Status: accepted | Area: SPA session lifecycle, privacy boundary (Rental-Ui) | Behaviour approved by Tigran 2026-10-14; mechanism Rental-Ui f9b32a9
+
+**Context:** qa-engineer reproduced on the real stack (Rental-Ui b821005) that a user A signed in on a shared browser who completes B's password-reset link (ADR-035) ends up in B's session with A's live state: the SignalR chat hub negotiated as A stayed open (B's tab received A's realtime chat), and the notification, chat and owner-requests badge pollers kept A's numbers. The verify-email page has the same path. Cause: those services started and stopped only when `isAuthenticated` changed, and the user-scoped store resets ran only on `logout`; a token swap A→B never flips the boolean.
+
+**Decision:**
+1. **The session lifecycle is keyed on the signed-in user id, not on the authenticated boolean.** `SessionLifecycleService.sessionUserId$` = `isAuthenticated` + user id, `distinctUntilChanged`, `null` = signed out; it holds back the authenticated-but-user-not-yet-loaded window. Every emission stops the chat hub and the badge pollers, then starts them again for a non-null id. The hub's `accessTokenFactory` reads the current token, so it renegotiates as the new user. This covers every path that swaps the token (login, external, verify-email, reset-password) without per-page code.
+2. **`sessionReplaced`** is dispatched for a non-null A → non-null B change only (logout passes through null; a same-user re-auth keeps the id). A global meta-reducer drops every state key except `auth` on that action, so each feature slice returns to its initial state; lazy slices reload on next use.
+3. Services and pages start when `/auth/me` has delivered the user, not the instant the token lands (a few ms later on login), matching the boot path.
+4. **Plain logout is unchanged by this ADR.** Favourites in particular are still not reset on logout (pre-existing; Trello Lu4YT3x1, Medium).
+
+**Rejected:** (a) patching each feature to listen for the reset and verify success actions — every new user-scoped feature would have to remember it; (b) forcing a full page reload after a reset/verify while signed in — hides the bug instead of fixing the lifecycle, and loses the toast; (c) refusing to open a reset link while another user is signed in — ADR-035 lets the link work for whoever holds it.
+
+**Accepted residual:** for the few ms between the token swap and `/auth/me`, the header still shows A; teardown happens when B's user arrives. A login while signed in on a data page resets that page's slice (intended "like login").
+
+**Related:** ADR-035, ADR-021 §5 (no token revocation), M-057.
