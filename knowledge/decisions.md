@@ -1092,3 +1092,32 @@ Date: 2026-10-14 | Status: accepted | Area: SPA session lifecycle, privacy bound
 **Accepted residual:** for the few ms between the token swap and `/auth/me`, the header still shows A; teardown happens when B's user arrives. A login while signed in on a data page resets that page's slice (intended "like login").
 
 **Related:** ADR-035, ADR-021 §5 (no token revocation), M-057.
+
+## ADR-037: SQL Server warm-up is survived by a bounded retry around the startup migration only — there is no global EF execution strategy
+Date: 2026-10-16 | Status: accepted | Decided by: Tigran | Area: architecture / resilience (`rental-api`)
+
+**Context:** M-005. The db healthcheck (`SELECT 1` on master) can pass before a persisted user database is online. `Database.MigrateAsync()` then sees "missing", issues `CREATE DATABASE`, gets SqlException 1801 and the process died: exit 139. Locally that left the API down; in production `restart: unless-stopped` turned it into a crash loop.
+
+**Decision:**
+1. `MigrationExtensions.ApplyMigrationsAsync` wraps the startup migration in `MigrationRetry.ExecuteAsync`:
+   - at most 10 attempts, a fixed 5 s apart, so roughly 45 s of sleep in the worst case, well inside the production api healthcheck's `start_period: 180s`;
+   - a new DI scope and a new `AppDbContext` on each attempt;
+   - one warning logged per failed attempt;
+   - after the last attempt the original exception is rethrown, so a genuinely broken migration still stops the process loudly.
+2. Only `SqlException` is retried, and only when its number is 1801 (database exists), 4060 (cannot open database) or 18456 (login failed during startup), or when EF's own `SqlServerTransientExceptionDetector` says transient. Every other exception is thrown on the first attempt.
+3. **The runtime has no retry.** `UseSqlServer` gets no `EnableRetryOnFailure` and no other execution strategy. Request-time SQL errors surface as they always did.
+
+**Why:** the failure exists only at startup, so the fix lives only at startup. A retrying execution strategy refuses user-initiated transactions with `InvalidOperationException`, and the code has 10+ `BeginTransactionAsync` sites, including the Serializable ones in `BookingsStore` and `ListingsOwnerStore`. Each would have to be rewritten through `CreateExecutionStrategy().ExecuteAsync`, with idempotency reasoning per site, to fix a problem none of them has. Retrying a migration is safe: 1801/4060 occur before any migration has been applied, each migration runs in its own transaction, and EF re-reads `__EFMigrationsHistory` on each attempt.
+
+**Verified live (2026-10-16):** on an isolated compose project, the race was forced by `stop api db` → `start db` → immediately `up -d --no-deps api`. It was hit 3 times out of 3. Each time the log showed `Startup migration attempt 1/10 failed (SQL error 1801)` and the API was healthy on attempt 2. Three plain `down`/`up` cycles never hit the window.
+
+**Rejected:**
+- (a) **Global `EnableRetryOnFailure`**, which the original backlog card suggested. It breaks every user-initiated transaction, as above.
+- (b) **A db healthcheck that waits for the user database to be `ONLINE`**. On a fresh volume the database does not exist yet, so the check needs a "missing is also fine" branch. It would have to be changed in three compose files, and it still would not cover a SQL Server restart under an already-running API. It may be added later as defence in depth, but it does not replace the retry.
+- (c) **Relying on `restart: unless-stopped`**. It heals only production, not the local stack. It does so by crash-looping, and the exit code hides real migration failures among the warm-up ones.
+
+**Residue, accepted:**
+- The classifier calls `SqlServerTransientExceptionDetector`, an EF-internal API (EF1001 is suppressed at that one line). An EF upgrade may move it.
+- The unit tests construct `SqlException` by reflection over SqlClient internals, so a SqlClient upgrade may break the test helper, not the product.
+
+**Related:** M-005, ADR-022 (the same race, one layer out, in CI).
