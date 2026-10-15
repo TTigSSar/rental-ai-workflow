@@ -514,3 +514,35 @@ Date: 2026-10-13 | Area: agent tooling (orchestrator)
 **Rule:**
 - M-060 applies to the orchestrator too: Write/Edit only, for every file, including JSON data files.
 - Removing a long backlog item with Edit is tedious but correct. A shell writer is not an acceptable shortcut.
+
+## M-064: A writer called a new error code "contract-neutral", and it added a 403 to a route
+Date: 2026-10-14 | Area: API contract discipline (agents)
+**Symptom:** backend-dev's post-review fix for password reset (rental-api `9c486a8`) made `POST /api/auth/reset-password` return `auth.user_blocked` for a user blocked between the commit and the re-read. Its report said "No route, DTO or status-code set changed". `AuthController` maps `auth.user_blocked` to **403**, so the route's status set grew from 200/400/429 to 200/400/403/429.
+**Cause:** the hand-off offered the change as "your call, report it", and the writer judged by the error code's name, not by the controller's mapping.
+**Fix:** the orchestrator read the controller mapping before passing the commit on; reverted in rental-api `4256f49` (back to 400 `auth.reset_token_invalid`, with a comment).
+**Rule:**
+- A new error code on a route is a contract change until the controller mapping proves its status is already in the route's set. The report must name the status, not only the code.
+- The orchestrator greps the controller's error mapping for every new code a writer introduces before calling a change "no contract change".
+
+## M-065: qa-engineer took down a running Docker stack it had not started
+Date: 2026-10-15 | Area: shared environment (agents, Docker)
+**Symptom:** the hand-off said "`docker ps` should be empty — prove no stack is running before you start one". qa-engineer found the DoRent stack up for 10 h, ran `docker compose … down` (no `-v`) and rebuilt it from this feature's commits. A parallel session was most likely using that stack (it had its own worktree and an API on 7241 that vanished mid-run).
+**Cause:** the agent treated "should be empty" as a precondition it could restore, not as a stop condition.
+**Fix:** none needed for data (no `-v`); reported to Tigran.
+**Rule:**
+- A shared resource found in an unexpected state (a running stack, a port held by something else) is a `BLOCKED`, not something to reset. Only a stack the agent started in the same run may be stopped by it.
+- Hand-offs say "if it is not empty, stop and report", never "should be empty".
+
+## M-066: The reset link was mailed to the address the requester typed, so a collation-equal twin could receive it
+Date: 2026-10-16 | Area: authentication (password reset, email verification), SQL Server collation
+**Symptom:** `/security-review` found that `PasswordResetService.ForgotAsync` looked the account up with `user.Email == normalized` and then sent the link to `normalized`, the request string. Under the default `SQL_Latin1_General_CP1_CI_AS`, Unicode comparison treats `ß`=`ss`, `æ`=`ae`, ignores width and some code points, so `victim@busineß.am` finds `victim@business.am` and the link goes to the attacker's IDN twin domain → account takeover. `EmailVerificationService.ResendAsync` had the same pattern (lower impact: verify also needs the password). Two reviews, a verifier full tier and a QA pass had not caught it.
+**Cause:** the account-state read returned no email, so the service only had the request string to send to; nobody asked "who receives the link?" as a separate question.
+**Fix:** rental-api — send every reset and resend-verification email to the stored `user.Email`, plus an ordinal stored-vs-requested check that falls back to the silent 202.
+**Rule:**
+- Any email that carries a credential (reset link, verification link) goes to the address read from the database, never to a request value. A lookup by a user-supplied string under a case-insensitive collation is a match, not an identity.
+- Reviewers of auth flows check the recipient of every outgoing credential explicitly.
+
+## M-067: The orchestrator appended ADRs with a shell heredoc
+Date: 2026-10-14 | Area: agent tooling (orchestrator)
+**Symptom:** ADR-035 and ADR-036 were appended to `knowledge/decisions.md` with `cat >> … <<'EOF'`, the day after M-063 restated "Write/Edit only, for every file". The quoted heredoc kept the backticks intact, so no content was lost, but a later `node -e '…'` amendment of the same file failed on an apostrophe and had to be redone with Edit.
+**Rule:** M-063 stands without exceptions: knowledge files are changed with Write/Edit only, including appends.
