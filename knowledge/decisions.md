@@ -1121,3 +1121,16 @@ Date: 2026-10-16 | Status: accepted | Decided by: Tigran | Area: architecture / 
 - The unit tests construct `SqlException` by reflection over SqlClient internals, so a SqlClient upgrade may break the test helper, not the product.
 
 **Related:** M-005, ADR-022 (the same race, one layer out, in CI).
+
+## ADR-039: The user chat inbox is ordered by last activity — a new conversation counts as activity
+Date: 2026-10-16 | Status: accepted | Area: chat, API ordering
+
+**Context:** `ConversationsStore.ListForUserAsync` ordered the inbox by `LastMessageAt DESC`; SQL Server sorts NULL lowest, so a conversation with no messages always landed at the bottom. That was harmless while threads were only reached from the inbox, but once "Message {renter}" on the owner listing page (and "Message {owner}" on booking pages) get-or-create a thread via `POST /api/chat/conversations/from-booking/{bookingId}`, the thread the user has just opened is buried below the fold: the chat page reloads the list after navigation and the server order overwrites the client-side upsert (verifier walk, 2026-10-16).
+
+**Decision:** the user inbox is ordered by `COALESCE(LastMessageAt, CreatedAt) DESC` — creating a conversation is its first activity. A deterministic tiebreak follows. The client keeps the same rule: `openConversationFromBookingSuccess` upserts the row at the top, and a sent or received message moves its row to the top; an unknown conversation in a realtime message triggers a list reload.
+
+**Scope:** the user inbox only (`GET /api/chat/conversations`). The admin moderation thread list keeps message-less threads last (it is a work queue, not a recency feed). No DTO, route or schema change.
+
+**Rejected:** (a) frontend-only scroll-to-active-row — keeps the server order, so the row is still at the bottom and must be hunted for on mobile after "back"; (b) the client re-pinning the active empty thread on top after every list load — diverges from the server order and jumps after a reload.
+
+**Related:** ADR-001 (booking-scoped conversations, denormalised inbox preview).
