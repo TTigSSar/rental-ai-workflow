@@ -758,6 +758,7 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
    - The reset writes `PreferredLanguage` from the request instead of today's `null` (`EmailVerificationStore.cs:281`). Otherwise M-056 repeats on this path.
    - The ADR-028 squat escape hatch via Google remains for Gmail/Workspace addresses. For others, the escape is an admin deleting the pending account.
    - Residual risk, accepted: someone who once owned a recycled address can be first to create an account with it. There is no password reset to recover it.
+     - **Amended 2026-10-14 by ADR-035 §5 (Tigran accepted the risk):** "there is no password reset" no longer holds. Whoever holds the mailbox of a Google-created account can now set a password through "Forgot password?" and enter it, while the original owner keeps signing in with Google, so the account has two controllers. For a non-authoritative email (a recycled Yahoo address, a lapsed company domain) that is a takeover of the original owner's phone, home point, chats and bookings. Accepted as the same risk every email-reset account carries; the mitigation is carded (Trello, Low).
 5. **Names.**
    - The first name comes from `given_name`, then the full `name`. The last name comes from `family_name`, otherwise it stays empty.
    - **The email local part is never used as a name**, because names are shown to other users.
@@ -922,7 +923,7 @@ Date: 2026-10-12, amended 2026-10-13 | Area: frontend / design tokens, accessibi
 **Related:** ADR-014 (the design owns form), ADR-030 §9 (message colours kept local in `styles.css`).
 
 ## ADR-032: The auth dialog stays a true modal; language is switched from inside it
-Date: 2026-10-12 | Area: frontend / auth dialog, i18n, accessibility | Status: decided (Tigran); placement pending Claude Design
+Date: 2026-10-12 | Area: frontend / auth dialog, i18n, accessibility | Status: **WITHDRAWN 2026-10-14 (Tigran)**: the in-dialog switch will not be built; see the withdrawal note at the end of this ADR
 
 **Context.** While the auth dialog is open, its modal mask covers the header language selector. A click on the selector lands on the mask, which closes the dialog, so a user cannot switch language while signing in. This matters more since ADR-030 §9: the Google button's language follows the UI language (`hl`).
 
@@ -937,6 +938,14 @@ Date: 2026-10-12 | Area: frontend / auth dialog, i18n, accessibility | Status: d
 - (b) **Leaving it** (close, switch, reopen). It loses the form state, and a first-time visitor who doesn't read English may not find the way.
 
 **Related:** ADR-030 §9 (Google button language), ADR-014.
+
+**Withdrawn 2026-10-14 (Tigran).** The in-dialog language switch is not built.
+- **Why:**
+  - The auth dialog never opens on its own. It opens only after a click on a page the user already sees: the header Log in / Sign up, a favourite heart, or a booking action. So the user meets the page's language before the dialog, and the header selector is available to guests on desktop and mobile.
+  - A user who opens the dialog in the wrong language closes it, switches, and reopens. The cost is only the input they had started typing.
+  - Building the switch meant a design pass, a selector inside a focus-trapped modal, a Google button re-render, and tests, all for that rare case.
+- **The underlying cause is addressed elsewhere.** A first-time visitor always lands in English, because `LanguageService.resolveInitial()` falls back to the first language when nothing is stored and ignores the browser's language. That is the Trello card "First visit: UI language from the browser (hy/ru), fallback English", which needs its own ADR.
+- The modal behaviour described above (aria-modal, focus trap, mask) is unchanged and remains how the dialog works.
 
 ## ADR-033: PrimeNG's own strings follow the UI language; the DatePicker's month/year buttons are named by their visible text
 Date: 2026-10-12 | Area: frontend / i18n, dates, accessibility | Status: decided (Tigran)
@@ -965,3 +974,150 @@ Date: 2026-10-12 | Area: frontend / i18n, dates, accessibility | Status: decided
 - (e) **`Intl` with an i18n fallback for hy only.** Two code paths, and en/ru would depend on each browser's ICU build.
 
 **Related:** ADR-032 (`LanguageService` owns the language), ADR-031.
+
+## ADR-034: Every text colour meets WCAG AA; failing semantic colours are darkened minimally in their own hue
+Date: 2026-10-13 | Area: frontend / design tokens, accessibility | Status: decided (Tigran)
+
+**Context.** After ADR-031 fixed the orange, the axe sweep still failed on other colours:
+- footer text on grey (2.27–3.46);
+- secondary grey `#908f9c` (3.0–3.18);
+- `#64748b` on `#faf8f4` (4.48);
+- the green `#0e8a5f` on tints and under white text (3.84–4.35);
+- the blue `#4a5fe3` on `#e8eaff` (4.37);
+- the amber `#d97706` (3.13–3.18);
+- the calendar weekday labels `#b5b6b7` (2.03).
+
+**Decision (Tigran, 2026-10-13: "fix it in this session").**
+- **Text needs ≥ 4.5:1** against its actual background, and **non-text** needs ≥ 3:1. **Disabled controls are exempt**, which covers the calendar's disabled days and the neutral disabled button from ADR-031.
+- A failing colour is fixed by **darkening it in its own hue, by the smallest step that passes**. The fix goes in the shared token or variable, not in per-component overrides. Backgrounds and tints change only where darkening the text cannot reach the target, as with the footer.
+- This is a colour-only change; no layout or form changes (ADR-014).
+- The orange tokens stay as ADR-031 sets them.
+- The values chosen are listed below once implemented. New colours must pass the same rule before they are merged.
+
+**Values** (Rental-Ui `c00562b`).
+
+| Colour / token | Was | Now | Worst case after |
+|---|---|---|---|
+| `--ui-color-footer` (background) | `#7b7a7a` | `#5c5b5b` | links white α.92 6.05, headings α.78 4.89 |
+| `--ui-color-text-hint` | `#908f9c` | `#6f6e7d` | 4.71 on `#faf8f4` |
+| notifications group label | `#64748b` | `#63738a` | 4.55 on `#faf8f4` |
+| success green (`--ui-color-success`, `--dash-success`) | `#0e8a5f` | `#0d7d56` | 4.54 on `#e6f4ee` |
+| blue (`--dash-blue`, message pill) | `#4a5fe3` | `#465ce2` | 4.54 on `#e8eaff` |
+| amber (`--dash-warn`, `--chat-warn`, `--note-warn`) | `#d97706` | `#a75c05` | 4.52 on `#fff1dc` |
+| danger (`--ui-color-danger`) | `#d9342b` | `#cc2d25` | 4.63 on `#fdecea` |
+| notification "review" yellow (text and fills) | `#e39a00` | `#956500` | 4.52 on `#fcf1d8` |
+| calendar weekday and date-box labels | `#b5b6b7` | `--ui-color-text-hint` | 5.00 |
+
+- The footer could not pass by darkening its text alone: pure white on `#7b7a7a` measures only 4.23. So its background moved, and the headings now sit closer in weight to the links.
+- Notification kinds change only their `strong` (text and fill) colour. Their `color` (dots and icons, non-text) is unchanged.
+- The disabled calendar days (`#dededf`) stay as they are, because disabled controls are exempt.
+
+**Amended 2026-10-13 (Tigran), after the before/after screenshots.**
+- **Amber and yellow fills keep their bright colour and carry dark text.** This replaces darkening the fill:
+  - pickup/return amber fill `#d97706` with `#1a1b26` text and icon: 5.36;
+  - review yellow fill `#e39a00` with `#1a1b26`: 7.23.
+  - The darkened fills (`#a75c05`, `#956500`) passed with white text, but they read as brown and olive.
+  - Amber and yellow **text on a light background** (pills, the chat toy title) keeps the darkened values from the table above.
+  - Rule: **on a light, warm fill (amber, yellow), the text is dark rather than the fill being darkened.**
+- **Decorative glyphs are not text for this rule** when they are `aria-hidden` and carry no information, for example the `·` separator in notification meta (2.71:1). WCAG sets no requirement for pure decoration.
+
+**Rejected.**
+- (a) **A separate design pass for each colour.** The steps are mechanical, and the look barely changes.
+- (b) **Accepting the failures as residual risk.** Most of them are small, cheap fixes.
+
+**Related:** ADR-031, ADR-014.
+
+## ADR-035: Password reset by an emailed link — a 30-minute single-use token in the URL fragment, always 202, verified accounts only, its own per-recipient cap and rate limit; issued JWTs are not revoked
+Date: 2026-10-14 | Status: accepted | Area: auth surface, API contract, transactional email | Approved by Tigran 2026-10-14 (decisions 1–9) | Trello TLnsDdZx
+
+**Context:**
+- DoRent has no way to recover a forgotten password. ADR-005, ADR-020 and ADR-021 §6 accepted the gap while no email went out.
+- Since ADR-028/029 the building blocks exist: `UserTokens` (hashed, `Purpose`-keyed, revoke-not-delete), the Resend transport, the global send budget, per-IP rate limiting (ADR-027) and the token-in-fragment link.
+- ADR-030 sends a user with an email conflict to "sign in with your password", and the Google sign-in design places a "Forgot password?" link that is hidden until this ships.
+
+**Decision:**
+1. **A link, not a code.**
+   - Link: `{App:PublicBaseUrl}/auth/reset-password#token=…`. The page strips the fragment at once, keeps the token in component memory only, and posts only when the user submits (ADR-028 §6).
+   - `POST /api/auth/forgot-password { email, preferredLanguage }` → always **202**.
+   - `POST /api/auth/reset-password { token, newPassword }` → **200 `AuthResponse`** (auto-login), issued only after the commit and built from the freshly re-read user, like verify-email.
+   - `newPassword` follows the creation rule of ADR-021 (amended 2026-09-27): 8 characters minimum, at most 72 UTF-8 bytes, `auth.password_too_long` from the service, not a DataAnnotation.
+   - Auto-login adds no risk: whoever holds the link can set the password anyway.
+   - **`POST /api/auth/reset-password/check { token }`** (added 2026-10-14, Tigran chose variant (б) after the design review): the reset page checks the link on load, so a dead link is reported before the user types a password. **204** for a live token, otherwise the same 400 `auth.reset_token_expired` / `auth.reset_token_invalid` as reset. Read-only: it never consumes or revokes. Anonymous, under the same `password-reset` rate limit. The token travels in the POST body, never in a URL. It is a liveness oracle for a token the caller already holds; with 256-bit tokens it gives no guessing advantage. Rejected: (a) no check, the form always shown and a dead link reported only on submit, as the verify-email page does; simpler, but the user types a new password twice before learning the link is dead.
+2. **Token.**
+   - New `TokenPurpose.PasswordReset = 2`. Explicit, never reused (ADR-028 §11). The column is an int, so **no migration**.
+   - 32 bytes from a CSPRNG, base64url, only the SHA-256 stored; lookups match `TokenHash` **and** `Purpose`.
+   - **TTL 30 minutes, single use.** A new request revokes the previous live reset token (the filtered unique index requires one live token per user and purpose).
+   - Cooldown 60 s per user, measured from the last reset token's `CreatedAt`, enforced by a conditional revoke, as ADR-028 §7.
+   - An expired token → 400 `auth.reset_token_expired`; any other invalid, revoked or consumed token → 400 `auth.reset_token_invalid`.
+   - Atomicity follows ADR-028 R1: lock order `Users` → `UserTokens`, the write logic in an Infrastructure store, one transaction that updates the password conditionally on `IsBlocked = 0 AND IsEmailConfirmed = 1` and consumes the token conditionally on `ConsumedAt IS NULL AND ExpiresAt > @now`; both must affect exactly one row, otherwise roll back.
+3. **A reset does NOT revoke JWTs already issued**, the same limitation as ADR-021 §5: `User` has no security stamp and tokens carry no `jti`, so a stolen token survives the reset for the rest of its lifetime (at most 60 minutes, `AccessTokenExpirationMinutes`). Never describe the reset as "signing out other devices". Revocation is carded separately: Trello hbprFg3q (High).
+4. **Verified accounts only.** For an unverified (pending) account the request answers 202 and sends nothing, and the reset endpoint refuses its tokens. A reset never verifies a pending registration: that would keep the squatter's phone, name and home point that the ADR-028 §2 replacement wipes. The pending user re-registers or uses resend-verification.
+5. **External-only users may set a first password.** A Google-only account (`PasswordHash = ""`) can use the flow; mailbox ownership is the same proof registration relies on, and it gives that user a fallback login. `auth.password_not_set` on `PUT /api/auth/me/password` is unchanged.
+   - **Accepted risk (Tigran, 2026-10-14, after review):** this makes a Google-created account controllable by whoever holds its mailbox, with the Google login still linked: two controllers on one account. For non-authoritative emails (recycled addresses, lapsed domains) it is a takeover path. Accepted, and ADR-030 §4 amended. Not chosen for now: (b) a reset unlinks the external identity, which still hands the account to the mailbox holder; (c) refuse reset for Google-linked accounts with a non-authoritative email and send a "you sign in with Google" email instead. (c) is carded as the mitigation (Trello, Low).
+6. **Anti-enumeration: always 202.** Unknown, blocked, unverified and over-cap emails all answer 202 with nothing sent (an exhausted global budget answers 503 for every email alike, see §7 amendment). The send happens inside the request, so response timing can reveal that an account exists. Accepted, as the existing 409 on register already enumerates (ADR-028 D6).
+7. **Budgets.**
+   - The **global send budget is shared** with verification email (one Resend quota, ADR-029 amendment of 2026-10-09). Exhausted → 202, nothing sent, Critical log.
+   - The **per-recipient cap is separate**: at most 5 reset emails per recipient per 24 h, counted over reset-purpose tokens only. A shared cap would let whoever squats an address with re-registrations block its owner's reset as well.
+   - **Amended 2026-10-14 (Tigran, after review):**
+     - **An exhausted global budget answers 503 `auth.password_reset_unavailable`** (the §10 "temporarily unavailable" screen), not a silent 202, so the user is not told a link is on its way. To keep §6, the budget is checked **before any account lookup, for every request**, exactly like the §10 email gate: unknown and existing emails get the same 503. No token is issued or revoked when the budget is exhausted, and a refused issue (cooldown, cap, race) never consumes budget. Verification email keeps ADR-028 §8 unchanged.
+     - **The per-recipient cap stays silent (202)**, because it is counted only for existing verified accounts; a "limit reached" answer would reveal that the account exists. Instead the "Check your email" screen states the rule up front: "You can request up to 5 emails a day." Not chosen: counting the cap for every address, existing or not, so a 429 could be shown to everyone; it needs per-address state for unknown emails.
+     - Both the budget exhaustion and a reset-cap hit are logged: the budget's Critical log names verification **and** password-reset email; a cap hit logs a Warning with the user id only, never the address.
+8. **Rate limit:** a new per-IP policy `password-reset`, 5 requests/minute, one bucket shared by both endpoints. Separate from `auth` and `email-verification` (ADR-021 §4 precedent).
+9. **Email language:** `preferredLanguage` from the request, which the client fills with the current UI language; then `User.PreferredLanguage`; then English (ADR-025, ADR-029 §4). The body carries no user-controlled data (ADR-028 §12). Per M-056 a client test proves the field is actually sent.
+10. **Production email gate (ADR-028 §9), approved by Tigran 2026-10-14.** When email is not configured in Production, forgot-password answers **503 `auth.password_reset_unavailable`**, not a silent 202, as register and resend do. A 202 would tell the user a link is on its way when none can be sent. The 503 says nothing about whether the account exists, so it does not weaken §6.
+
+**Rejected:**
+- (a) **A 6-digit code.** Needs its own brute-force protection; the link is the established precedent (ADR-028 Rejected (d)).
+- (b) **A 24-hour TTL like verification.** A reset link is a credential; a short window limits a leaked mailbox or a forwarded mail.
+- (c) **Revoking JWTs in this change.** Needs a schema change and a check on every authenticated request; carded separately (hbprFg3q).
+- (d) **A reset that also verifies a pending account.** Breaks the ADR-028 pending-replacement model (see 4).
+- (e) **Sharing the per-recipient cap with verification.** Turns the accepted verification squat (ADR-029, 2026-10-09) into a reset lockout.
+- (f) **Admin-initiated reset only, no email.** Does not scale and puts an operator in every recovery.
+
+**Related:** ADR-005, ADR-020, ADR-021, ADR-025, ADR-027, ADR-028, ADR-029, ADR-030, M-013, M-016, M-056.
+
+## ADR-036: A switch to another user without a logout behaves like logout + login — realtime and pollers follow the user id, and every non-auth store slice is reset
+Date: 2026-10-14 | Status: accepted | Area: SPA session lifecycle, privacy boundary (Rental-Ui) | Behaviour approved by Tigran 2026-10-14; mechanism Rental-Ui f9b32a9
+
+**Context:** qa-engineer reproduced on the real stack (Rental-Ui b821005) that a user A signed in on a shared browser who completes B's password-reset link (ADR-035) ends up in B's session with A's live state: the SignalR chat hub negotiated as A stayed open (B's tab received A's realtime chat), and the notification, chat and owner-requests badge pollers kept A's numbers. The verify-email page has the same path. Cause: those services started and stopped only when `isAuthenticated` changed, and the user-scoped store resets ran only on `logout`; a token swap A→B never flips the boolean.
+
+**Decision:**
+1. **The session lifecycle is keyed on the signed-in user id, not on the authenticated boolean.** `SessionLifecycleService.sessionUserId$` = `isAuthenticated` + user id, `distinctUntilChanged`, `null` = signed out; it holds back the authenticated-but-user-not-yet-loaded window. Every emission stops the chat hub and the badge pollers, then starts them again for a non-null id. The hub's `accessTokenFactory` reads the current token, so it renegotiates as the new user. This covers every path that swaps the token (login, external, verify-email, reset-password) without per-page code.
+2. **`sessionReplaced`** is dispatched for a non-null A → non-null B change only (logout passes through null; a same-user re-auth keeps the id). A global meta-reducer drops every state key except `auth` on that action, so each feature slice returns to its initial state; lazy slices reload on next use.
+3. Services and pages start when `/auth/me` has delivered the user, not the instant the token lands (a few ms later on login), matching the boot path.
+4. **Plain logout is unchanged by this ADR.** Favourites in particular are still not reset on logout (pre-existing; Trello Lu4YT3x1, Medium).
+
+**Rejected:** (a) patching each feature to listen for the reset and verify success actions — every new user-scoped feature would have to remember it; (b) forcing a full page reload after a reset/verify while signed in — hides the bug instead of fixing the lifecycle, and loses the toast; (c) refusing to open a reset link while another user is signed in — ADR-035 lets the link work for whoever holds it.
+
+**Accepted residual:** for the few ms between the token swap and `/auth/me`, the header still shows A; teardown happens when B's user arrives. A login while signed in on a data page resets that page's slice (intended "like login").
+
+**Related:** ADR-035, ADR-021 §5 (no token revocation), M-057.
+
+## ADR-037: SQL Server warm-up is survived by a bounded retry around the startup migration only — there is no global EF execution strategy
+Date: 2026-10-16 | Status: accepted | Decided by: Tigran | Area: architecture / resilience (`rental-api`)
+
+**Context:** M-005. The db healthcheck (`SELECT 1` on master) can pass before a persisted user database is online. `Database.MigrateAsync()` then sees "missing", issues `CREATE DATABASE`, gets SqlException 1801 and the process died: exit 139. Locally that left the API down; in production `restart: unless-stopped` turned it into a crash loop.
+
+**Decision:**
+1. `MigrationExtensions.ApplyMigrationsAsync` wraps the startup migration in `MigrationRetry.ExecuteAsync`:
+   - at most 10 attempts, a fixed 5 s apart, so roughly 45 s of sleep in the worst case, well inside the production api healthcheck's `start_period: 180s`;
+   - a new DI scope and a new `AppDbContext` on each attempt;
+   - one warning logged per failed attempt;
+   - after the last attempt the original exception is rethrown, so a genuinely broken migration still stops the process loudly.
+2. Only `SqlException` is retried, and only when its number is 1801 (database exists), 4060 (cannot open database) or 18456 (login failed during startup), or when EF's own `SqlServerTransientExceptionDetector` says transient. Every other exception is thrown on the first attempt.
+3. **The runtime has no retry.** `UseSqlServer` gets no `EnableRetryOnFailure` and no other execution strategy. Request-time SQL errors surface as they always did.
+
+**Why:** the failure exists only at startup, so the fix lives only at startup. A retrying execution strategy refuses user-initiated transactions with `InvalidOperationException`, and the code has 10+ `BeginTransactionAsync` sites, including the Serializable ones in `BookingsStore` and `ListingsOwnerStore`. Each would have to be rewritten through `CreateExecutionStrategy().ExecuteAsync`, with idempotency reasoning per site, to fix a problem none of them has. Retrying a migration is safe: 1801/4060 occur before any migration has been applied, each migration runs in its own transaction, and EF re-reads `__EFMigrationsHistory` on each attempt.
+
+**Verified live (2026-10-16):** on an isolated compose project, the race was forced by `stop api db` → `start db` → immediately `up -d --no-deps api`. It was hit 3 times out of 3. Each time the log showed `Startup migration attempt 1/10 failed (SQL error 1801)` and the API was healthy on attempt 2. Three plain `down`/`up` cycles never hit the window.
+
+**Rejected:**
+- (a) **Global `EnableRetryOnFailure`**, which the original backlog card suggested. It breaks every user-initiated transaction, as above.
+- (b) **A db healthcheck that waits for the user database to be `ONLINE`**. On a fresh volume the database does not exist yet, so the check needs a "missing is also fine" branch. It would have to be changed in three compose files, and it still would not cover a SQL Server restart under an already-running API. It may be added later as defence in depth, but it does not replace the retry.
+- (c) **Relying on `restart: unless-stopped`**. It heals only production, not the local stack. It does so by crash-looping, and the exit code hides real migration failures among the warm-up ones.
+
+**Residue, accepted:**
+- The classifier calls `SqlServerTransientExceptionDetector`, an EF-internal API (EF1001 is suppressed at that one line). An EF upgrade may move it.
+- The unit tests construct `SqlException` by reflection over SqlClient internals, so a SqlClient upgrade may break the test helper, not the product.
+
+**Related:** M-005, ADR-022 (the same race, one layer out, in CI).
