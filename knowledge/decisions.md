@@ -1123,7 +1123,7 @@ Date: 2026-10-16 | Status: accepted | Decided by: Tigran | Area: architecture / 
 **Related:** M-005, ADR-022 (the same race, one layer out, in CI).
 
 ## ADR-038: A first visit takes the UI language from the browser (hy/ru), otherwise English; the detected language is not stored
-Date: 2026-10-16 | Status: **proposed** (switch to "accepted" once Tigran confirms) — implemented autonomously on Tigran's instruction ("take the card fully autonomously, no questions"), following the card's own recommendations point by point; **awaiting Tigran's explicit confirmation of points 1–4 before the PR to `main` is merged** | Area: frontend / i18n (cross-cutting default language)
+Date: 2026-10-16 | Status: accepted | Decided by: Tigran (points 1–4 confirmed explicitly 2026-10-16, after an autonomous implementation that followed the card's recommendations) | Area: frontend / i18n (cross-cutting default language)
 
 **Context.** `LanguageService.resolveInitial()` took the language stored in localStorage (`stayfinder.lang`) and otherwise fell back to the first entry of `LANGUAGES`, which is `en`. The browser's language was never consulted, so every first-time visitor in Yerevan landed in English. That was the underlying cause of the withdrawn ADR-032 problem (a user who did not notice the selector opens the auth dialog in a language they do not read).
 
