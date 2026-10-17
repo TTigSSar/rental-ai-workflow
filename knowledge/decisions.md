@@ -265,6 +265,8 @@ Date: 2026-09-17 | Area: backend + frontend (listing field, create/edit wizard, 
 
 **Rejected:** (a) **Keeping it a prepaid refundable deposit** — the platform cannot back the refund promise. (b) **Letting each owner choose deposit vs. compensation** — two models, two sets of copy, one confused renter. (c) **A renter consent checkbox at booking**, optionally stored — Tigran chose information over a click-through; a stored consent would imply DoRent arbitrates. (d) **Relabelling the UI only and keeping `DepositAmount` in code and schema** — cheaper now, a permanently misleading name. (e) **Hiding the row when no amount is set** — see 4.
 
+**Amended 2026-10-17 (Tigran) — section 5, item page.** The amount appeared three times on the item page (specs tile, pickup row, protection card), and handover twice (tile + row). On the item page the renter now meets compensation **once, in the protection card** ("If something goes wrong"), which is always rendered — desktop sidebar and the mobile copy — and still shows "Not specified" when no amount is set, so section 4 holds. The specs tile and the pickup row for compensation are removed. Each fact gets one home: specs quad = age · condition · handover · minimum rental (minimum rental moves up from the pickup rows and takes compensation's slot); pickup rows beside the map = handover detail (the "free pickup or courier in Yerevan" hint) · hygiene notes. The booking-breakdown row is unchanged. **Rejected:** dropping the pickup rows entirely — handover detail reads best next to the area map.
+
 ## ADR-019: DoRent is single-currency AMD, and `DramCurrencyPipe` is the only way a price reaches a screen
 Date: 2026-09-22 | Area: frontend (price rendering, i18n) + backend (notification meta, seed, validation)
 
