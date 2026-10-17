@@ -1210,6 +1210,7 @@ Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: backend + fronte
 2. **A booking occupies the nights `[start, effEnd)`**, where `effEnd = end > start ? end : start + 1`. Two bookings conflict only when those nights overlap. A return day may therefore be another booking's pickup day (handover on the same day). A same-day booking occupies its own day. The create and approve overlap checks and the calendar's disabled dates all follow this rule.
 3. **Minimum rental is enforced:** `RentalDays < MinRentalDays` → `400 booking.below_min_rental` on create, and the booking UI prevents it up front.
 4. **Stored data is not rewritten.** Existing `TotalPrice` values are what the parties agreed. Day counts that are recomputed from dates (notifications, reviews) shift by one for old bookings. This is accepted.
+5. **One booking can last at most 365 rental days** (`BookingsService.MaxRentalDays`; it was 90 and had never been recorded). The 90-day cap contradicted two parts of the UI. The "1 year" quick-book always failed. The minimum-rental chips 180 and 365 (ADR on minimum rental, §3) made a listing impossible to book once the minimum was enforced. Tigran chose to raise the cap rather than remove those options. Accepted risk: one renter request can now hold a listing's calendar for up to a year. The hold is short, because a pending request expires after 24h.
 
 **Known limitation:** in the calendar a renter cannot click another booking's pickup day as their own return day, because the day is disabled. The API accepts it. Revisit if renters ask.
 
