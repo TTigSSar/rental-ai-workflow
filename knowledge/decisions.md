@@ -1162,3 +1162,14 @@ Date: 2026-10-16 | Status: accepted (decided by Tigran) | Area: chat, API orderi
 **Rejected:** (a) frontend-only scroll-to-active-row — keeps the server order, so the row is still at the bottom and must be hunted for on mobile after "back"; (b) the client re-pinning the active empty thread on top after every list load — diverges from the server order and jumps after a reload.
 
 **Related:** ADR-001 (booking-scoped conversations, denormalised inbox preview).
+
+## ADR-040: A listing PATCH tells "absent" from `null` for its clearable optionals — absent leaves the field, `null` clears it
+Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: API contract, listings, partial update
+
+**Context:** `PATCH /api/listings/{id}` (`UpdateListingRequest`) was a partial update where `null` meant "leave unchanged" for every field. The edit wizard sends its whole form state and emits an emptied optional as `null`, so an owner who cleared condition, safety notes or hygiene notes got a 204 and kept the old value (Trello #123). Numeric optionals could not be cleared through the API at all — the contract had no way to say "set to null".
+
+**Decision:** for the **clearable optionals** — `ageFromMonths`, `ageToMonths`, `condition`, `hygieneNotes`, `safetyNotes`, `minRentalDays` — the request distinguishes three states: **property absent = leave unchanged, explicit `null` = clear, value = set**. Blank/whitespace text still normalises to `null` (clears). `compensationAmount` also distinguishes absent from `null`, but an explicit `null` is a 400 — ADR-018 makes the amount required once set. Every other field (`title`, `description`, `pricePerDay`, `priceUnit`, `deliveryType(s)`) keeps "null or absent = unchanged". The backend carries presence with an `Optional<T>` wrapper bound by a JSON converter; validation ranges and messages are unchanged. Clearing a text field on an Approved listing is a content change and re-triggers moderation (existing rule). The wizard UI does not change: it still cannot empty age, minimum days, compensation or delivery.
+
+**Rejected:** (a) blank string clears, numbers stay non-clearable — cheapest, but leaves the contract unable to express "clear" for numbers; (c) a `clearFields: string[]` list — a second contract surface to validate and keep in sync; (d) full-replace PUT for the wizard — breaks partial-update semantics and any stale client.
+
+**Related:** ADR-018 (compensation required), ADR-016 (compliance checklist reads safety/hygiene notes), ADR-024 (home-point fields removed from the update).
