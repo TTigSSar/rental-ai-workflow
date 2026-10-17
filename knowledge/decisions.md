@@ -1188,3 +1188,12 @@ Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: i18n, home page,
 **Rejected:** (b) localize `Title` on the server from the request language, the ADR-025 notification pattern. That needs a language signal on a public endpoint, backend translation storage and per-language caching, and it is a two-repo change for display-only copy. (c) Remove `Title` from the API. That is a breaking contract change, and it loses the fallback for sections the UI does not know yet.
 
 **Related:** ADR-025 (server-rendered copy is reserved for notifications, which are emitted outside a UI session), ADR-038 (UI language).
+
+## ADR-042: A listing's condition has four canonical values; "Excellent" and "Used" are display-only legacy aliases
+Date: 2026-10-17 | Area: frontend (condition labels on cards, item page, owner pages) + dev seed data
+
+`Listing.Condition` is a free string on the API. The create/edit form only offers **`New`, `LikeNew`, `Good`, `Fair`**, and those four are the canonical set. The dev seed (`DevelopmentSeedData.cs`) was written with a different vocabulary: `"Excellent"` on 19 listings and `"Used"` on 5. The UI's condition resolver only knew the four, so those listings showed no condition at all: no tile on the item page, no badge on the card.
+
+**Decision (Tigran, 2026-10-17):** the four values stay the only conditions an owner can choose. The UI resolver also accepts two **legacy aliases, for display only**: `Excellent` is shown as "Like new" and `Used` is shown as "Fair". There is one shared resolver, which the card, item page and owner pages all use; the copies that had been duplicated are gone. Stored data is not rewritten. The dev seed is additive and never overwrites existing rows, so a UI-side alias is the only fix that also covers databases that are already seeded.
+
+**Rejected:** (a) **Also rewriting the seed to canonical values.** This would keep new databases clean, but it touches a second repo, existing databases would still need the alias, and it adds nothing a renter can see. Revisit it if the seed is ever rebuilt. (b) **Making Excellent and Used real conditions.** That would give owners six overlapping grades instead of four. (c) **An allow-list on the API.** That is a validation rule no product path can trip. Same reasoning as ADR-019 §5.
