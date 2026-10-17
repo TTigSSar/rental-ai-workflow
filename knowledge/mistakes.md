@@ -547,3 +547,11 @@ Date: 2026-10-16 | Area: authentication (password reset, email verification), SQ
 Date: 2026-10-14 | Area: agent tooling (orchestrator)
 **Symptom:** ADR-035 and ADR-036 were appended to `knowledge/decisions.md` with `cat >> … <<'EOF'`, the day after M-063 restated "Write/Edit only, for every file". The quoted heredoc kept the backticks intact, so no content was lost, but a later `node -e '…'` amendment of the same file failed on an apostrophe and had to be redone with Edit.
 **Rule:** M-063 stands without exceptions: knowledge files are changed with Write/Edit only, including appends.
+**Repeat (2026-10-17):** ADR-040 was appended with a quoted heredoc again; the content survived (verified), the follow-up amendment went through Edit. Same rule; read M-063/M-067 before the first knowledge write of a session.
+
+## M-068: A partial-update DTO used `null` for "unchanged" while its only client sent `null` for "emptied"
+Date: 2026-10-17 | Area: API contract, listings (edit wizard)
+**Symptom:** an owner who emptied condition, safety notes or hygiene notes on `/my-listings/:id/edit` got a 204 and kept the old value (Trello #123). Numeric optionals could not be cleared through the API at all.
+**Cause:** `UpdateListingRequest` was written as a PATCH where `null` = "leave unchanged", but the edit wizard sends its whole form state and maps an empty control to `null`. Both halves were individually reasonable; nobody checked what the one real client meant by `null`. Unit tests on each side passed because each tested its own meaning.
+**Fix:** ADR-040 — `Optional<T>` distinguishes absent from explicit `null` for the clearable optionals.
+**Rule:** when a request DTO gives `null` a meaning, check that meaning against what every caller actually sends for an emptied field, and pin it with an HTTP test that posts RAW JSON (a C# object initialiser cannot express "absent").
