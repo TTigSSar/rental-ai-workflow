@@ -1175,3 +1175,14 @@ Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: API contract, li
 **Rejected:** (a) blank string clears, numbers stay non-clearable — cheapest, but leaves the contract unable to express "clear" for numbers; (c) a `clearFields: string[]` list — a second contract surface to validate and keep in sync; (d) full-replace PUT for the wizard — breaks partial-update semantics and any stale client.
 
 **Related:** ADR-018 (compensation required), ADR-016 (compliance checklist reads safety/hygiene notes), ADR-024 (home-point fields removed from the update).
+
+## ADR-041: Home section titles are localized in the UI by the section `key`; the server `title` is only a fallback
+Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: i18n, home page, display rules
+
+**Context:** `GET` home sections (`HomeSectionsQueryService`) returns each section with a stable `Key` (`recent`, `popular`, `liked`, `baby-toys`, `outdoor-toys`) and an English `Title`. The home page rendered `section.title` directly, so the titles stayed English in hy/ru, and the FAQ had to quote them in Latin script.
+
+**Decision:** the UI translates a section title through the ngx-translate key `home.sections.titles.<key>` (en/hy/ru in `public/i18n`). When that key has no translation, it falls back to the server `title`, so a new section added on the backend still shows a readable title until the UI adds its key. The API contract does not change. The backend `Title` stays English and is not localized server-side. Copy that refers to a section (e.g. the FAQ) uses the same localized titles. A unit spec (`src/app/shared/i18n/translations-parity.spec.ts`) asserts en/hy/ru have identical key sets and no empty values.
+
+**Rejected:** (b) localize `Title` on the server from the request language, the ADR-025 notification pattern. That needs a language signal on a public endpoint, backend translation storage and per-language caching, and it is a two-repo change for display-only copy. (c) Remove `Title` from the API. That is a breaking contract change, and it loses the fallback for sections the UI does not know yet.
+
+**Related:** ADR-025 (server-rendered copy is reserved for notifications, which are emitted outside a UI session), ADR-038 (UI language).
