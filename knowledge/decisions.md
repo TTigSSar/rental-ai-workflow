@@ -1243,3 +1243,26 @@ Off-path statuses (Rejected, Cancelled, Expired, Archived) are unchanged: the ba
 **Scope:** a single function, `computeBookingProgress` (`shared/utils/booking-progress.utils.ts`). Every consumer (booking details page, my-booking card) follows it. The component, `ProgressStepState` and the CSS are unchanged.
 
 **Amended 2026-10-18: the details-page Timeline follows the same rule (Tigran).** The Timeline card (Requested → Approved → Picked up → Completed, with dates) fills every reached item with a solid accent dot (no check icon: Tigran rejected a check inside the small dot as visually cramped, and the progress bar above already carries the checks) and rings the first unreached one, with `aria-current="step"`. It does this only while the booking is on the happy path (Pending, Approved, Active, ReturnMarked). Completed and the off-path statuses have no ringed item. `ReturnMarked` counts as picked up. Before this change the Timeline did not count it, so a ReturnMarked booking showed "Picked up" as not reached. The logic lives in the page's `timeline` computed and reuses `ProgressStepState`.
+
+## ADR-045: The user never sees server error prose; API errors are translated by `errorCode` through one shared mapper
+Date: 2026-10-18 | Area: frontend (all features, `src/app/api/`), i18n, security
+
+**Decision (Tigran, 2026-10-18, Trello #46):** every HTTP error that reaches the user goes through one `ApiErrorMapper` in `Rental-Ui/src/app/api/`. The server's `title`, `detail`, `errors[]` and raw body are **never** shown, not even as a fallback. The text is resolved in this order:
+
+1. a known `errorCode` (read with `getApiErrorCode()`) → its i18n key;
+2. no known code → a generic key by HTTP status: 0 `errors.network` · 400 `errors.validation` · 401 `errors.sessionExpired` · 403 `errors.forbidden` · 404 `errors.notFound` · 409 `errors.conflict` · 429 `errors.tooManyRequests` · ≥500 `errors.server`;
+3. anything else, including non-HTTP errors → `errors.generic`.
+
+- **Translated at failure time.** The mapper returns a string translated with `translate.instant`, and that string goes into the store or component state. Accepted trade-off: an error already on screen does not re-translate if the user switches language.
+- **Every known code is mapped.** The table is typed `Record<KnownApiErrorCode, string>`, so adding a code to `api-error.model.ts` without a translation does not compile. Codes with the same meaning share a key (every `*.unauthenticated` → `errors.sessionExpired`, every `*.user_blocked` → `errors.userBlocked`). Existing feature keys are reused where they exist.
+- **ASP.NET validation 400s** (an `errors{}` dictionary without `errorCode`) show the generic `errors.validation`. Client-side validators catch these fields before submit, and a server-side rule the UI must explain gets an `errorCode` (see the ADR-021 convention for `auth.invalid_language`).
+- **Behaviour branching stays local.** Components that switch on a code to change *what happens* (enum states in forgot/reset/verify/google sign-in, `INLINE_ONLY_ERROR_CODES`, `report.already_reported`, the `homePointRequired`/`phoneRequired` selectors) keep doing so. Only the *message text* is centralised.
+- **Display surfaces are unchanged.** The global `<p-toast>` and the inline `p-message`s stay where they are. Unifying them is a separate design task.
+
+**Why:** `toApiErrorMessage` rendered `detail`/`title` verbatim. On a 500 that leaked a C# stack trace with local file paths into the user-facing banner. Every server rejection also reached ru/hy users in English. Nine features had grown their own partial code→key maps, and all of them fell back to the raw text for anything unmapped.
+
+**Rejected:**
+- Storing the i18n key and translating with the `translate` pipe in templates. It re-translates live, but it changes about 40 templates and every store's error type.
+- Keeping the server's validation strings for 400s: English, and it breaks the "no server prose" rule.
+- Mapping only the codes a user can reach today: there is no compile-time guard, so new codes would silently fall back.
+- A single error banner or dialog in this change: it is a visible redesign across dozens of pages and needs a design first.
