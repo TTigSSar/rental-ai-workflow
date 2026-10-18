@@ -570,3 +570,10 @@ Date: 2026-10-17 | Area: frontend (bookings, ADR-043)
 **Cause:** the plan said to check every "N days" display. The hand-off named only the two known `countInclusiveRentalDays` copies, and the grep searched by that function name. `booking-details-page` computed the days inline (`(end - start) / 86_400_000 + 1`) under a different name, so the name-based search missed it.
 **Fix:** 3c8a3d4 moves it to the shared `countRentalDays` and adds a spec.
 **Rule:** when a formula changes, grep for the arithmetic itself (`86_400_000`, `86400000`, `DayNumber`, `+ 1` near start/end dates) as well as for the helper names. List every hit in the hand-off with a keep/convert decision for each.
+
+## M-071: A field was declared shipped once the model and mapper carried it, but no template ever rendered it
+Date: 2026-10-18 | Area: frontend (bookings, ADR-013)
+**Symptom:** the renter's booking note was stored (`Booking.Note`), returned on `BookingRequestResponse`/`BookingDetailResponse`, and mapped into `BookingRequest.note`/`BookingDetail.note`. Yet the owner never saw it: no bookings template referenced `note`. ADR-013 still stated "the owner reads it on the request card while deciding". Two months later Trello #23 described the problem as "backend field missing", which had been false since 230c361.
+**Cause:** 230c361 closed when the write path was done (form → API → DB) and the read path reached the model. Nobody checked that the field had a consumer in a template, and the specs tested mappers, not rendering.
+**Fix:** 85d503f renders the note on the owner request card and on the booking details page (both roles), with component specs plus a mocked e2e journey.
+**Rule:** a read-side field is done when `grep -r "<field>" src/**/*.html` finds the template that shows it, and a spec asserts the rendered text. Before acting on a backlog card, check its premise against the code (see M-017).
