@@ -1215,3 +1215,23 @@ Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: backend + fronte
 **Known limitation:** in the calendar a renter cannot click another booking's pickup day as their own return day, because the day is disabled. The API accepts it. Revisit if renters ask.
 
 **Rejected:** (a) **Inclusive counting** (the previous behaviour). It charges for a day nobody uses. (b) **Keeping the return day blocked.** It is simpler and gives the owner a buffer day, but Tigran chose back-to-back handover. (c) **Re-pricing existing bookings.** The agreed price must not change after the fact.
+
+## ADR-044: The booking progress bar ticks every reached step and highlights the step being awaited
+Date: 2026-10-18 | Area: frontend (bookings, shared `booking-progress`)
+
+**Decision (Tigran, 2026-10-18):** the four-node bar (Requested → Approved → Picked up → Returned) shows each step the booking has **reached, including the one it is in now**, as `done` (check mark). The **next** step, the one the booking is waiting for, is `current` (accent border ring, `aria-current="step"`). The rest are `upcoming`.
+
+| status | Requested | Approved | Picked up | Returned |
+|---|---|---|---|---|
+| Pending | ✓ | ring | – | – |
+| Approved | ✓ | ✓ | ring | – |
+| Active / ReturnMarked | ✓ | ✓ | ✓ | ring |
+| Completed | ✓ | ✓ | ✓ | ✓ |
+
+Off-path statuses (Rejected, Cancelled, Expired, Archived) are unchanged: the bar is replaced by the terminal label.
+
+**Why:** a Pending booking has already been requested, so leaving "Requested" unticked read as "not done yet". The ring belongs on the step whose outcome the user is waiting for (at Pending, the owner's approval).
+
+**Rejected:** the previous rule, which ringed the step equal to the current status. It made a completed action look pending and gave no visual hint of what comes next.
+
+**Scope:** a single function, `computeBookingProgress` (`shared/utils/booking-progress.utils.ts`). Every consumer (booking details page, my-booking card) follows it. The component, `ProgressStepState` and the CSS are unchanged.
