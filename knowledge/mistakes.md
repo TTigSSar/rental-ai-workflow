@@ -563,3 +563,10 @@ Date: 2026-10-17 | Area: frontend (listing condition, API mappers)
 **Fix:** db951c0 adds one shared `normalizeToyCondition` at the API boundary, used by every mapper (ADR-042 refined). The resolver reuses it.
 **Rule:** for a "value not shown" bug, trace the field from the raw API response through every mapper and narrowing type to the template before scoping the fix, and test it at the mapper layer with the raw string.
 **Also this session:** M-067 repeated twice. ADR-042 was appended with a heredoc, and its amendment was made with an inline python rewrite. The content survived. The orchestrator also ran `git add knowledge/decisions.md` without first checking `git diff`, which pulled a concurrent, unrelated ADR-018 amendment ("compact protection card") into d634cff. Rule: before staging a shared knowledge file, run `git diff` on it and stage only your own hunks.
+
+## M-070: A day-count rule changed in the shared helper, but a third hand-rolled copy kept the old formula
+Date: 2026-10-17 | Area: frontend (bookings, ADR-043)
+**Symptom:** after b158479, the booking details page showed "Duration 8 days" next to a 7-day total. The reviewer caught it before merge. All unit and e2e tests were green.
+**Cause:** the plan said to check every "N days" display. The hand-off named only the two known `countInclusiveRentalDays` copies, and the grep searched by that function name. `booking-details-page` computed the days inline (`(end - start) / 86_400_000 + 1`) under a different name, so the name-based search missed it.
+**Fix:** 3c8a3d4 moves it to the shared `countRentalDays` and adds a spec.
+**Rule:** when a formula changes, grep for the arithmetic itself (`86_400_000`, `86400000`, `DayNumber`, `+ 1` near start/end dates) as well as for the helper names. List every hit in the hand-off with a keep/convert decision for each.
