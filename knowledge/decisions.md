@@ -1236,6 +1236,15 @@ Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: backend + fronte
 
 **Rejected:** (a) **Inclusive counting** (the previous behaviour). It charges for a day nobody uses. (b) **Keeping the return day blocked.** It is simpler and gives the owner a buffer day, but Tigran chose back-to-back handover. (c) **Re-pricing existing bookings.** The agreed price must not change after the fact.
 
+**Amended 2026-10-19 — points 3 and 5 are checked at every point where dates become agreed, not only at creation (spec v1.1 Q-3, TR-02, TR-28, §11.1, AC-26; RL-05).** Status: accepted (Tigran, 2026-10-19 — rule Q-3 and this text, RL-05).
+- **Where it is checked.** The server re-checks `RentalDays ≥ MinRentalDays` and `RentalDays ≤ 365` (a) at create (TR-01, as before), (b) when the owner **approves** a request (TR-02), and (c) when the other side **accepts a date proposal** (TR-28, ADR-046). Each check sits in the same transaction as the overlap re-check.
+- **Which minimum.** Always the listing's **current** `MinRentalDays` at the moment of the check, not the value at creation. If the owner raises the minimum while a request is live, approving that request fails (TC-P-25). The owner can still reject it.
+- **What is checked in which state.** At TR-28 "start ≥ today" is skipped in S5, because the start date has already passed (spec §6 item 4). The minimum and the maximum still apply, so shortening an S5 return below the minimum is rejected.
+- **Error codes are unchanged** (ADR-045): `400 booking.below_min_rental` and `400 booking.invalid_dates` (for over 365 days). No new codes.
+- **The UI mirrors it.** The approve and accept-proposal actions are hidden or disabled when the check would fail. The server re-checks anyway (ADR-046: `availableActions` already applies these guards). The booking calendar caps the selection at 365 days (`maxDate`), so the server is no longer the only limit (audit A-11).
+
+**Rejected:** (a) checking against the minimum frozen at creation. Q-3 says current, and the owner raised it for a reason. (b) Silently auto-rejecting live requests when the owner raises the minimum. That is a terminal transition nobody chose (the spirit of O-11). The owner decides.
+
 ## ADR-044: The booking progress bar ticks every reached step and highlights the step being awaited
 Date: 2026-10-18 | Area: frontend (bookings, shared `booking-progress`)
 
