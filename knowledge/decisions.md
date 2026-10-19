@@ -1404,3 +1404,58 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
 - RL-14: the schema and EF migration (`OutcomeReason`, `ReceiptUnconfirmed`, `StatusChangedAt`, `DueAt` + index, `LegacyRule`, the `BookingEvents` table). The migration needs human review.
 - contract-guardian: the DTO fields and routes in point 8.
 - RL-03 (ADR-001: chat read-only, the pill vocabulary per state), RL-04 (price snapshot), RL-06 (scheduler over `DueAt`, notification dedupe by event id), RL-09 (consent marks), the support-case ADR and the date-proposal entity.
+
+## ADR-047: Rental price — a listing has a `Price` per `PriceUnit`; the total is "every started period" (B-2); a booking snapshots price and unit at creation and is never repriced; "hourly" is retired
+Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — forks and text, RL-04) | Area: backend (domain, listings, bookings, seed) + frontend (listing form, cards, booking page, calendar preview) | Spec: Rental Spec v1.1 §11 (B-2), §6 item 5 (Q-8, Q-19); migration §3.1–§3.2 (M-J, M-K, Q-15)
+
+**Context:** no ADR records what `PriceUnit` means. `Listing.PricePerDay` holds the owner's number for **whatever** unit they chose. The server prices every booking as `days × PricePerDay` (`BookingsService.cs:117-136`), and the UI preview does the same. So "7 000 ֏ per week" costs 49 000 ֏ for 7 days (C-02). "Hourly" is offered and accepted (C-20), although rentals are counted in days. A booking stores only `TotalPrice`. The booking API returns the **current** listing price as `pricePerDay`, so a later price change rewrites what the booking appears to have cost (C-21). The name `PricePerDay` and its texts ("per day", `dailyRate.hint`) contradict the data (C-22), and the UI never shows the unit (C-23).
+
+**Decision:**
+
+1. **A listing's price is a price per its unit.** `PriceUnit` ∈ Daily 1, Weekly 2, Monthly 3, Yearly 4. `Hourly = 0` stays in the enum only for legacy rows (point 6). For pricing, a month = 30 days and a year = 365 days, not calendar units.
+2. **Rename `PricePerDay` → `Price` everywhere (Tigran, 2026-10-19).** This covers the column `Listings.PricePerDay` → `Listings.Price` (EF migration, a rename with no data change), `Listing.Price`, every DTO property and JSON field `pricePerDay` → `price`, the create/update listing requests, and the UI models, services, forms, fixtures and e2e mocks.
+   - Today that is about 24 API files plus 11 test files and about 21 UI files plus 16 specs, listed in RL-15/RL-20.
+   - This **is a breaking contract change**. It ships as one coordinated route-8 change through contract-guardian. API and UI deploy together from one compose stack, so there is no period with both field names.
+   - Texts that say "per day" for a price get fixed in the same change.
+   - The booking DTOs lose the field entirely (point 4).
+3. **Total = B-2, "every started period is paid in full".** N = max(1, return − pickup) (ADR-043). Day: N × p · week: ⌈N/7⌉ × p · month: ⌈N/30⌉ × p · year: ⌈N/365⌉ × p.
+   - The result is whole dram. No rounding is needed (ADR-019).
+   - **One calculator per side.** `RentalPrice` in Domain, next to `RentalPeriod`, and `rental-price.utils.ts` in the UI, next to `countRentalDays`. Both run the same TC-P-01…TC-P-26 table.
+   - **The server is the source of truth.** The UI preview is only a preview. After submit the UI shows the server's `TotalPrice` (AC-29).
+4. **A booking snapshots price and unit at creation.** New columns `Booking.UnitPrice` (decimal?, the listing `Price` at TR-01) and `Booking.PriceUnit` (PriceUnit?) are written once and never changed.
+   - `TotalPrice` is written at TR-01 and then changes **only** when a date proposal is accepted (TR-28). The recomputation uses the **snapshot** and the formula in point 3, never the current listing price (Q-8, TC-P-23).
+   - `TotalPrice` is never recomputed for early or late handover or return, or for listing price changes (§11.2, §11.5).
+   - **Migrated bookings have `UnitPrice = PriceUnit = null`, and nothing is backfilled (Q-19).** For them "propose other dates" (TR-27) is not in `availableActions` (ADR-046), and the API rejects it with `409 booking.date_change_unavailable` (TC-P-26).
+   - **The booking API shows only the snapshot.** `pricePerDay` is removed from `BookingResponse` and `BookingDetailResponse`. They gain `unitPrice?` and `priceUnit?` (null for migrated bookings). A booking never displays the listing's current price. The UI shows `TotalPrice` and, when the snapshot exists, "K periods × price".
+5. **"Hourly" is not offered or accepted.** The listing form's unit picker drops it. Create and update with `Hourly` return `400 listing.price_unit_not_allowed` (AC-31, TC-P-21). That includes a request that omits the unit, which binds to `0 = Hourly`.
+6. **Legacy hourly listings (M-K (1) + (a), delegated):**
+   - they stay published but are not bookable: TR-01 returns `409 booking.listing_price_updating` (TC-P-24);
+   - the UI shows "Владелец обновляет цену" whenever the listing's `priceUnit` is `Hourly`, and there is **no** separate API flag;
+   - "hourly" cannot be re-selected when editing;
+   - the owner is asked once to pick a unit (a notification, routed through RL-06);
+   - live S1 requests on them can still be approved or rejected at the amount the renter saw.
+   - Known risk: an inactive owner leaves the listing unbookable indefinitely. There is no hide rule.
+7. **Migration (delegated, migration §3.2).**
+   - M-J (1): live S1 requests on week/month/year listings are repriced once by point 3. The total can only go down. A chat line shows old → new, and the renter is notified.
+   - Q-15 (A): agreed bookings on non-daily prices keep their total, and support gets the list.
+   - No agreed `TotalPrice` (S2–S8 or terminal) is ever touched.
+8. **Display:** a listing price is always shown with its unit ("7 000 ֏ / неделя") on the card, the listing page, the map popup and the owner page (AC-30), formatted only by `DramCurrencyPipe` (ADR-019). The booking page shows "N дней → K недель × p = total". When N is not a multiple of the period, it adds the hint "За ту же сумму можно вернуть до {дата}". No text promises payment through DoRent (O-13, ADR-014).
+
+**Why:** B-2 was Tigran's product decision. This ADR records the mechanism so that the two copies of the formula, the snapshot and the retired unit do not drift apart. Snapshotting makes a booking's price a fact of the agreement, not a live read of a listing the owner can edit. Leaving migrated bookings without a snapshot avoids inventing an agreed basis that never existed (Q-19). The rename removes a field name that every reader misreads. Tigran accepted the one-time breaking change, and the single compose deploy makes it cheap.
+
+**Rejected:**
+- (a) Keeping the `PricePerDay` name and only documenting it (audit A-11 rec. 3). No contract break, but the misleading name stays forever.
+- (b) Renaming only in C#, with the column and JSON names mapped to the old ones. The code and the contract would disagree.
+- (c) The booking API falling back to the current listing price for migrated bookings. It shows an amount the parties never agreed on.
+- (d) Backfilling snapshots, from the current listing price or from `TotalPrice / days`. That reprices on a basis that did not exist, and the original unit cannot be recovered (Q-19).
+- (e) A separate `isBookable` / `priceUpdateRequired` API flag. Today it depends on a single cause the UI can read from `priceUnit`, so it would be a contract field for nothing.
+- (f) Auto-converting "hourly" to "daily" with the same number. It changes the owner's price without consent (M-K (3)).
+- (g) Pro-rata pricing (N/7 × weekly price). Tigran chose B-2.
+
+**Follow-ups:**
+- RL-15 — schema: `Booking.UnitPrice`, `Booking.PriceUnit`, and the `Listings.PricePerDay` → `Price` column rename. The migration needs human review.
+- RL-20 — `RentalPrice`, the snapshot at create, TC-P server-side, and the rename through contract-guardian.
+- RL-22 — the unit shown everywhere.
+- RL-23 — the Hourly rejection.
+- The M-J/M-K/Q-15 migration steps.
+- The decisions register row "(нет ADR) PriceUnit" now points here.
