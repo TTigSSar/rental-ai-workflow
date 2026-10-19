@@ -503,6 +503,8 @@ Date: 2026-10-07 | Status: accepted (Tigran, 2026-10-06)
 9. **Recovery.** `/rewind` does not cover code edits made by subagents, so the recovery point is git. Before any writer runs, the plan records an execution baseline: each repo's HEAD, a clean tree, and the expected areas of change.
 10. **Trace privacy.** Persisted traces hold execution metadata only. They never hold prompts, assistant messages, command text, command output or reasoning.
 
+**Amended 2026-10-19 by Tigran — eighth agent `ux-designer`.** Read-only (Read, Glob, Grep; no Edit/Write, no Agent, no MCP). It turns a design request into a compact, staged prompt for the design tool, grounded in the real tokens and components and in the approved spec/ADRs; product questions go back as `NEEDS_INPUT` (Rule 0). Why: long hand-written design briefs (the Rental v1.1 brief) were over-specified and slowed iteration. Rejected: (a) the orchestrator keeps writing briefs inline — it carries the whole conversation and over-specifies; (b) giving the agent DesignSync — subagents cannot call it (M-032), import stays in the main thread.
+
 **Why.** All six agents inherited every tool. That included Edit/Write for a verifier whose whole value is "never fixes code", and `Agent` for all of them. Safety rested on prose. The workflow referred to a reviewer that did not exist, and the review skills scoped themselves to the outer repo, twice (M-034, M-050). Agents used four incompatible report formats. Broad allow rules (`ssh dorent@* *docker compose*`, `git push *`, `dotnet ef *`, `node -e`) left a production volume wipe, a push to `main` and a migration applied to the working dev database (M-051) each one auto-approved command away. Edits made by subagents are invisible to `/rewind`.
 
 **Rejected.**
