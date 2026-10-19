@@ -473,6 +473,8 @@ Date: 2026-10-06 | Status: accepted | Decided by: Tigran | Area: API/contract, i
 
 **Related:** ADR-024, ADR-013 (what a notification may disclose — the pickup body carries a district name, never coordinates or an address).
 
+**Amended 2026-10-19 — every notification kind, not only Pickup (spec v1.1 D-4, §13, AC-09; RL-07).** Status: accepted (Tigran, 2026-10-19). Every rental notification (N-01…N-19) and every other kind is rendered by `NotificationCopy` in the recipient's `PreferredLanguage` (en/hy/ru, English fallback) when its `Notification` row is created. For a notification held in the outbox during quiet hours (ADR-048), that means at delivery, in the language the user has at that moment. Email uses the same language. Rows already stored are not rewritten (a notification is a record of a moment). "Revisit when all ten kinds are converted together" is answered: they stay stored text, not keys.
+
 ---
 
 ## ADR-026: The agent system — a fixed roster, least privilege enforced by the harness, one report contract, and git delivery split between agent and orchestrator
@@ -1486,3 +1488,38 @@ Date: 2026-10-19 | Status: accepted — every choice below picked by Tigran, 202
 5. **No duplicates.** A unique `DedupeKey` (rental + kind + slot or event id) on both the outbox and the notification table.
 
 **Rejected:** a `TimeZoneInfo` lookup (needs tzdata in the image and Intl in the browser, for a zone without DST); a hand-rolled polling hosted service (Tigran chose a library); Quartz.NET (more setup, no dashboard); `DeliverAt` on `Notification` (every feed and counter query must remember the filter).
+
+## ADR-049: A support case is its own aggregate tied to one rental; support reads and writes the rental chat only while a case on it is open
+Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-08) | Area: backend (support, chat authorization, admin, blocking) + frontend (admin queue, case view) | Spec: v1.1 §9 (O-8, O-12, Q-7, Q-10, Q-11, Q-20), TR-12/21/22/24/25/26/33/34; audit A-9, A-10, C-08, C-09
+
+**Decision:**
+1. **A new `SupportCase` aggregate, separate from `Report`.** It references one booking and holds:
+   - a type (not received / not returned / damage / block / other) and a status (open, closed, reopened);
+   - party statements, each with an author and a time, including statements support records for a blocked party (Q-11: recorded, never actions on their behalf);
+   - up to 5 photos;
+   - a support log;
+   - an outcome history: every close and re-close with T1/T2/T3 and a mandatory note (TR-25, TR-34).
+   Reopening requires a reason (Q-10).
+2. **Who creates a case.** Only a participant of that rental (TR-12, TR-21, TR-22, TR-24), or the system when a party is blocked (TR-26). Creation checks participation, so the C-08 hole is not repeated. `Report` keeps doing listing/user/message moderation. Its own participation fix is RL-11.
+3. **Authorization predicate (testable):** `canAccessRentalChat(user, booking)` = user is the renter or the owner **OR** (user is Admin **AND** there is at least one open case for that booking). It is evaluated on every chat read and send (ADR-001, 2026-10-19 amendment). Support never becomes a participant.
+4. **Audit log.** Each support opening of a rental chat writes `SupportChatAccess` (admin id, case id, booking id, time). It never stores message text.
+5. **Blocking (closes ADR-016's open consequence via O-12).**
+   - When a party in S2–S8 is blocked, the system creates a "block" case and moves the booking to S9 **in the same transaction as the block**.
+   - In S1, a block ends the request without a case (TR-33).
+
+**Rejected:** extending `Report` with a booking target (different lifecycle, outcome and access rules, and it would inherit C-08); support as a temporary chat participant (ADR-001 amendment, (e)); permanent admin read access to rental chats (O-8 limits it to open cases).
+
+## ADR-050: Reviews open only with both parties' consent — two consent marks on the booking, written only by the parties' own actions
+Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-09) | Area: backend (reviews, bookings) + frontend (review prompts) | Spec: v1.1 §10; B-1, Q-16, Q-17, P-1, P-3, P-4, M-I; audit A-15, C-01
+
+**Decision:**
+1. **Two marks on `Booking`: `OwnerReviewConsentAt` and `RenterReviewConsentAt`.**
+   - The owner's mark is written by "Получил обратно, закрыть аренду" (TR-17/18).
+   - The renter's mark is written by the explicit "Всё в порядке" (TR-23) or later by "Всё было в порядке — открыть отзывы" (TR-32, no deadline, no reminders).
+   - There is no other writer. Silence (TR-23 by timeout), the system and support (TR-25, TR-34) never write a mark.
+2. **Reviews are open** iff the booking is T1 **and** both marks exist. This covers all three kinds (toy, owner, renter). Otherwise a review attempt returns `409 review.not_open` (ADR-045). This replaces the "status is Completed" gate in `ReviewsService`.
+3. **TR-32** is available in T1 only when the owner's mark exists and the renter's does not (Q-17).
+4. **Outcome change (TR-34, P-4).** Leaving T1 closes reviews, and reviews already left are not deleted automatically (support decides). Returning to T1 reopens them by the same marks.
+5. **Migration (M-I).** Legacy owner completion (MG-04) sets the owner's mark at `CompletedAt`, and the renter can then consent via TR-32. M-A rows get no marks. Existing reviews are kept.
+
+**Rejected:** D-6 "closing = consent" (cancelled by B-1); support consenting for a party (Q-16 A); a consent flag derived from booking events at read time (the marks are the queryable fact the review gate needs).
