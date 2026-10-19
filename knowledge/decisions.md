@@ -1468,3 +1468,21 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — forks and
 - RL-23 — the Hourly rejection.
 - The M-J/M-K/Q-15 migration steps.
 - The decisions register row "(нет ADR) PriceUnit" now points here.
+
+## ADR-048: Yerevan time is a fixed UTC+4; time comes from `TimeProvider`; timers and reminders run on Hangfire; non-urgent notifications wait in an outbox during quiet hours
+Date: 2026-10-19 | Status: accepted — every choice below picked by Tigran, 2026-10-19 (RL-06) | Area: backend (bookings, notifications, background jobs) + frontend (date logic) | Spec: v1.1 §2, §5, §13; O-2, Q-6
+
+**Decision:**
+1. **Calendar.** Every calendar rule (today, end of day, 09:00/18:00, quiet hours 22:00–09:00) uses Asia/Yerevan as a **fixed UTC+4**, with one helper per side (`YerevanCalendar` in Domain, a twin util in the UI). Storage stays UTC.
+2. **Clock.** Booking, chat and notification code reads time from an injected `TimeProvider`, already used by auth. There is no direct `DateTime.UtcNow`, so tests control time.
+3. **Scheduler: Hangfire** on our SQL Server.
+   - Each timer (TM-01…TM-08, and the urgent "N hours before" reminders) is a job enqueued in the same transaction that enters the state. It runs "TR-x if the booking is still in state Y with the same `DueAt`" (ADR-046).
+   - A stale job is a harmless no-op, so cancelling one is only best effort.
+   - The 09:00/18:00 reminders are two recurring jobs on Yerevan time.
+   - An hourly recurring catch-up handles bookings whose `DueAt` passed without a job (the M-012 class).
+   - The dashboard is Admin-only or off in production.
+   - `BookingExpiryBackgroundService` is replaced by this.
+4. **Quiet hours: an outbox.** A non-urgent notification created during quiet hours goes to `NotificationOutbox` with `DeliverAt = 09:00`. At that time a job turns it into a normal `Notification` and sends it on every channel. A `Notification` row therefore always means "visible". Urgent notifications (spec §5 list) bypass the outbox.
+5. **No duplicates.** A unique `DedupeKey` (rental + kind + slot or event id) on both the outbox and the notification table.
+
+**Rejected:** a `TimeZoneInfo` lookup (needs tzdata in the image and Intl in the browser, for a zone without DST); a hand-rolled polling hosted service (Tigran chose a library); Quartz.NET (more setup, no dashboard); `DeliverAt` on `Notification` (every feed and counter query must remember the filter).
