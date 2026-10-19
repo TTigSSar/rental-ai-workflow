@@ -577,3 +577,13 @@ Date: 2026-10-18 | Area: frontend (bookings, ADR-013)
 **Cause:** 230c361 closed when the write path was done (form → API → DB) and the read path reached the model. Nobody checked that the field had a consumer in a template, and the specs tested mappers, not rendering.
 **Fix:** 85d503f renders the note on the owner request card and on the booking details page (both roles), with component specs plus a mocked e2e journey.
 **Rule:** a read-side field is done when `grep -r "<field>" src/**/*.html` finds the template that shows it, and a spec asserts the rendered text. Before acting on a backlog card, check its premise against the code (see M-017).
+
+## M-072: The UI rendered the server's error prose verbatim, so a 500 leaked a C# stack trace into the login banner
+Date: 2026-10-18 | Area: frontend (all features, `src/app/api/`), security
+**Symptom:** `toApiErrorMessage` returned `errors[0]`, `detail`, `title` or the raw body for any unmapped error. A 500 whose ProblemDetails carried an exception showed "System.InvalidOperationException … in C:\…\LoginHandler.cs:line 42" in the login dialog. The verifier reproduced this live on `dev@3d5ee38`. Every server rejection also reached ru/hy users in English. Trello #46 had recorded this since 2026-07-11. Meanwhile nine features grew their own partial code→key maps, and all of them fell back to the raw text.
+**Cause:** the error helper was written as a convenience passthrough, with no rule on which text a user may see. Each feature then patched only the codes it noticed, so the unsafe fallback never went away.
+**Fix:** e68b43b, ebe8858 and cbbae81 (ADR-045) add one `ApiErrorMapper`: errorCode → key, then status → generic key, then `errors.generic`. Server prose is never shown. `Record<KnownApiErrorCode, string>` makes an unmapped code a compile error. A mocked e2e regression in `e2e/auth.spec.ts` covers the leak.
+**Rule:** a server error string is data for logs, never copy for users. UI error text comes only from i18n keys, chosen by `errorCode` or status.
+**Also this session:**
+- M-067 repeated a third time: ADR-045 was appended with a quoted heredoc. The content survived (backticks verified) and this entry went through Edit. The rule stays: read M-063/M-067 before the first knowledge write of a session.
+- `node tools/trello-sync/sync.js` ran while #46 was in Doing and #23/#105 were in Done. It created 3 duplicate cards (#128–#130), exactly the trap described in the trello-card-lifecycle memory. Tigran deleted them, and 3f8babd drops those backlog items. Rule: before running sync.js, remove from `backlog.json` every item whose card has left To Do.

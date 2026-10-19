@@ -22,6 +22,20 @@ Date: 2026-07-07 | Status: accepted
 **Rejected:** (a) Conversation keyed by user-pair — breaks the design's per-booking system messages and status pill, and the existing Angular model already carries `listingTitle`. (b) Storing read state as two nullable columns on `Conversation` (OwnerLastReadAt/RenterLastReadAt) — simpler for strict 1:1 but doesn't generalise and reads awkwardly for the "Seen on my last message" query; the participant table is cleaner.
 **Frontend impact:** the existing minimal Angular chat model (`title`/`participantName`/`listingTitle`/text-only) is replaced to match the design (booking-scoped, status, image/system messages). Contract rewrite handled by contract-guardian in a later Phase-1 increment.
 **Amended 2026-07-11:** the pill vocabulary gained a `completed` state: requested → approved → active → return_due → **completed** → closed. `completed` = booking Completed but `ClosedAt` still null (chat open, awaiting both party reviews); `closed` is emitted ONLY from the `ClosedAt` override. Rationale: M-007's fix mapped Completed straight to `closed`, which made the pill read "Closed" on a conversation that still accepted messages — the vocabulary must distinguish "rental done" from "thread locked".
+**Amended 2026-10-19 — the chat becomes read-only on entering T1/T2/T3; read-only is derived, not stored (accepted — forks and text decided by Tigran, 2026-10-19; RL-03; spec v1.1 R-3, Q-18, §9.2, §14.1, AC-36).** This supersedes the "booking complete AND both reviews in" lock in **Why** above and the `completed`/`closed` distinction of the 2026-07-11 amendment.
+1. **Trigger.** A booking chat is read-only for both parties as soon as the booking is in a terminal state: `BookingStates.ReadOnlyChat` = T1 `Completed`, T2 `NotHappened`, T3 `ClosedBySupport` (ADR-046). Reviews play no part. This includes T2 reached from S1 (rejected, withdrawn, expired, TR-33). Changing the outcome (TR-34) never gives sending back. The history stays readable. Card actions are not messages and keep working in a read-only chat: reviews and TR-32.
+2. **Derived, not stored.** `isClosed` = `booking.Status ∈ ReadOnlyChat` **and not** the legacy exception (point 4). It is computed on every read and every send. Nothing is written at the transition, so a missed event cannot leave a chat open (the M-012 class is gone). The review-based close goes away: `ReviewsService.CloseConversationIfBothReviewsInAsync`, the guard in `BookingsService.CompleteAsync` and `ChatService.TryLazyCloseAsync`. `Conversation.ClosedAt` is no longer written for booking chats. Whether the column is dropped or kept is RL-41's call. Moderation threads are unaffected: they have no booking and never close.
+3. **Rejected sends.** A participant's send (text or image) to a read-only chat returns `409 chat.conversation_closed`, the existing code (ADR-045). `MarkRead` stays allowed.
+4. **Legacy exception (M-H, migration §3.2).** Chats of migrated Rejected, Cancelled and Expired bookings (`Booking.LegacyRule` ∈ MG-05, MG-06, MG-07; ADR-046) stay open, as they are today. This applies **only to migrated rows**. Every new T2/T3 and every migrated T1 (MG-04, M-A), plus T2 from MG-02 and M-E, is read-only.
+5. **State tokens replace the pill vocabulary.** There is one token per state: `requested` S1 · `approved` S2 · `handover_claimed` S3 · `handover_unconfirmed` S4 · `active` / `return_due` S5 · `return_claimed` S6 · `return_unconfirmed` S7 · `closing` S8 · `disputed` S9 · `completed` T1 · `not_happened` T2 · `closed_by_support` T3 · `moderation` (unchanged). The `closed` override token is **retired**. Read-only travels as the separate `isClosed` flag, on the details response and the inbox preview, so a migrated T2 with an open chat reads `not_happened` + `isClosed: false`. The `return_due` rule moves to the Yerevan calendar (RL-06). The old fallback of terminal statuses to `requested` disappears.
+6. **Support access is a separate check, not participation (§9.2).** An Admin may read a booking chat and post as "Поддержка DoRent" only while **at least one support case on that booking is open**. This is checked on every request, so closing the case cuts access at once and reopening it (Q-10) restores it. Support never becomes a `ConversationParticipant`. Support may post even when the chat is read-only for the parties. Reopening a case never gives the parties sending back. Every support opening of a chat writes an audit entry: who, when, which case, no message text. While a case is open, the parties see "Поддержка видит этот чат" (AC-11). The case entity and its endpoints are their own ADR.
+
+**Rejected (2026-10-19):**
+- (a) Keeping the lock "after both reviews". It contradicts R-3, and the chat would stay writable indefinitely, since reviews are optional and need consent (B-1).
+- (b) Closing at T1 but with a review window. There is no product need, and it needs one more timer.
+- (c) Storing `ClosedAt` in the transition transaction, plus a self-heal. That makes two sources of truth, needs a backfill at migration and keeps the M-012 risk.
+- (d) Keeping `closed` as an override token. It hides whether the rental completed or did not happen.
+- (e) Support as a temporary participant. That is event-driven state again: a missed removal means permanent access. Audit A-9 asks for a per-request check.
 
 ## ADR-002: Chat image attachments are served as unauthenticated capability URLs
 Date: 2026-07-11 | Status: accepted (**deliberate trade-off, not an oversight**)
@@ -459,6 +473,8 @@ Date: 2026-10-06 | Status: accepted | Decided by: Tigran | Area: API/contract, i
 
 **Related:** ADR-024, ADR-013 (what a notification may disclose — the pickup body carries a district name, never coordinates or an address).
 
+**Amended 2026-10-19 — every notification kind, not only Pickup (spec v1.1 D-4, §13, AC-09; RL-07).** Status: accepted (Tigran, 2026-10-19). Every rental notification (N-01…N-19) and every other kind is rendered by `NotificationCopy` in the recipient's `PreferredLanguage` (en/hy/ru, English fallback) when its `Notification` row is created. For a notification held in the outbox during quiet hours (ADR-048), that means at delivery, in the language the user has at that moment. Email uses the same language. Rows already stored are not rewritten (a notification is a record of a moment). "Revisit when all ten kinds are converted together" is answered: they stay stored text, not keys.
+
 ---
 
 ## ADR-026: The agent system — a fixed roster, least privilege enforced by the harness, one report contract, and git delivery split between agent and orchestrator
@@ -486,6 +502,8 @@ Date: 2026-10-07 | Status: accepted (Tigran, 2026-10-06)
    **Amended 2026-10-07 by Tigran**, reversing this clause's original "only the orchestrator commits; agents never commit". Two reasons it changed: the agent that wrote the change is the only party that knows which paths are deliberate and what belongs in the message, and the orchestrator was reconstructing both from a diff it had not written — on the home-point release that reconstruction spanned 197 files across two repos. **The review gate does not move.** It sits at the push, which stays the orchestrator's and still requires reading the diff; an unpushed commit is local and reversible, so the irreversible step is still the one a human-owned path guards. `qa-engineer` and `platform-engineer` are included — the carve-out that excluded them is gone, and it was that carve-out which blocked the home-point release-prep doc commit mid-task.
 9. **Recovery.** `/rewind` does not cover code edits made by subagents, so the recovery point is git. Before any writer runs, the plan records an execution baseline: each repo's HEAD, a clean tree, and the expected areas of change.
 10. **Trace privacy.** Persisted traces hold execution metadata only. They never hold prompts, assistant messages, command text, command output or reasoning.
+
+**Amended 2026-10-19 by Tigran — eighth agent `ux-designer`.** Read-only (Read, Glob, Grep; no Edit/Write, no Agent, no MCP). It turns a design request into a compact, staged prompt for the design tool, grounded in the real tokens and components and in the approved spec/ADRs; product questions go back as `NEEDS_INPUT` (Rule 0). Why: long hand-written design briefs (the Rental v1.1 brief) were over-specified and slowed iteration. Rejected: (a) the orchestrator keeps writing briefs inline — it carries the whole conversation and over-specifies; (b) giving the agent DesignSync — subagents cannot call it (M-032), import stays in the main thread.
 
 **Why.** All six agents inherited every tool. That included Edit/Write for a verifier whose whole value is "never fixes code", and `Agent` for all of them. Safety rested on prose. The workflow referred to a reviewer that did not exist, and the review skills scoped themselves to the outer repo, twice (M-034, M-050). Agents used four incompatible report formats. Broad allow rules (`ssh dorent@* *docker compose*`, `git push *`, `dotnet ef *`, `node -e`) left a production volume wipe, a push to `main` and a migration applied to the working dev database (M-051) each one auto-approved command away. Edits made by subagents are invisible to `/rewind`.
 
@@ -1222,6 +1240,15 @@ Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: backend + fronte
 
 **Rejected:** (a) **Inclusive counting** (the previous behaviour). It charges for a day nobody uses. (b) **Keeping the return day blocked.** It is simpler and gives the owner a buffer day, but Tigran chose back-to-back handover. (c) **Re-pricing existing bookings.** The agreed price must not change after the fact.
 
+**Amended 2026-10-19 — points 3 and 5 are checked at every point where dates become agreed, not only at creation (spec v1.1 Q-3, TR-02, TR-28, §11.1, AC-26; RL-05).** Status: accepted (Tigran, 2026-10-19 — rule Q-3 and this text, RL-05).
+- **Where it is checked.** The server re-checks `RentalDays ≥ MinRentalDays` and `RentalDays ≤ 365` (a) at create (TR-01, as before), (b) when the owner **approves** a request (TR-02), and (c) when the other side **accepts a date proposal** (TR-28, ADR-046). Each check sits in the same transaction as the overlap re-check.
+- **Which minimum.** Always the listing's **current** `MinRentalDays` at the moment of the check, not the value at creation. If the owner raises the minimum while a request is live, approving that request fails (TC-P-25). The owner can still reject it.
+- **What is checked in which state.** At TR-28 "start ≥ today" is skipped in S5, because the start date has already passed (spec §6 item 4). The minimum and the maximum still apply, so shortening an S5 return below the minimum is rejected.
+- **Error codes are unchanged** (ADR-045): `400 booking.below_min_rental` and `400 booking.invalid_dates` (for over 365 days). No new codes.
+- **The UI mirrors it.** The approve and accept-proposal actions are hidden or disabled when the check would fail. The server re-checks anyway (ADR-046: `availableActions` already applies these guards). The booking calendar caps the selection at 365 days (`maxDate`), so the server is no longer the only limit (audit A-11).
+
+**Rejected:** (a) checking against the minimum frozen at creation. Q-3 says current, and the owner raised it for a reason. (b) Silently auto-rejecting live requests when the owner raises the minimum. That is a terminal transition nobody chose (the spirit of O-11). The owner decides.
+
 ## ADR-044: The booking progress bar ticks every reached step and highlights the step being awaited
 Date: 2026-10-18 | Area: frontend (bookings, shared `booking-progress`)
 
@@ -1243,3 +1270,258 @@ Off-path statuses (Rejected, Cancelled, Expired, Archived) are unchanged: the ba
 **Scope:** a single function, `computeBookingProgress` (`shared/utils/booking-progress.utils.ts`). Every consumer (booking details page, my-booking card) follows it. The component, `ProgressStepState` and the CSS are unchanged.
 
 **Amended 2026-10-18: the details-page Timeline follows the same rule (Tigran).** The Timeline card (Requested → Approved → Picked up → Completed, with dates) fills every reached item with a solid accent dot (no check icon: Tigran rejected a check inside the small dot as visually cramped, and the progress bar above already carries the checks) and rings the first unreached one, with `aria-current="step"`. It does this only while the booking is on the happy path (Pending, Approved, Active, ReturnMarked). Completed and the off-path statuses have no ringed item. `ReturnMarked` counts as picked up. Before this change the Timeline did not count it, so a ReturnMarked booking showed "Picked up" as not reached. The logic lives in the page's `timeline` computed and reuses `ProgressStepState`.
+
+## ADR-045: The user never sees server error prose; API errors are translated by `errorCode` through one shared mapper
+Date: 2026-10-18 | Area: frontend (all features, `src/app/api/`), i18n, security
+
+**Decision (Tigran, 2026-10-18, Trello #46):** every HTTP error that reaches the user goes through one `ApiErrorMapper` in `Rental-Ui/src/app/api/`. The server's `title`, `detail`, `errors[]` and raw body are **never** shown, not even as a fallback. The text is resolved in this order:
+
+1. a known `errorCode` (read with `getApiErrorCode()`) → its i18n key;
+2. no known code → a generic key by HTTP status: 0 `errors.network` · 400 `errors.validation` · 401 `errors.sessionExpired` · 403 `errors.forbidden` · 404 `errors.notFound` · 409 `errors.conflict` · 429 `errors.tooManyRequests` · ≥500 `errors.server`;
+3. anything else, including non-HTTP errors → `errors.generic`.
+
+- **Translated at failure time.** The mapper returns a string translated with `translate.instant`, and that string goes into the store or component state. Accepted trade-off: an error already on screen does not re-translate if the user switches language.
+- **Every known code is mapped.** The table is typed `Record<KnownApiErrorCode, string>`, so adding a code to `api-error.model.ts` without a translation does not compile. Codes with the same meaning share a key (every `*.unauthenticated` → `errors.sessionExpired`, every `*.user_blocked` → `errors.userBlocked`). Existing feature keys are reused where they exist.
+- **ASP.NET validation 400s** (an `errors{}` dictionary without `errorCode`) show the generic `errors.validation`. Client-side validators catch these fields before submit, and a server-side rule the UI must explain gets an `errorCode` (see the ADR-021 convention for `auth.invalid_language`).
+- **Behaviour branching stays local.** Components that switch on a code to change *what happens* (enum states in forgot/reset/verify/google sign-in, `INLINE_ONLY_ERROR_CODES`, `report.already_reported`, the `homePointRequired`/`phoneRequired` selectors) keep doing so. Only the *message text* is centralised.
+- **Display surfaces are unchanged.** The global `<p-toast>` and the inline `p-message`s stay where they are. Unifying them is a separate design task.
+
+**Why:** `toApiErrorMessage` rendered `detail`/`title` verbatim. On a 500 that leaked a C# stack trace with local file paths into the user-facing banner. Every server rejection also reached ru/hy users in English. Nine features had grown their own partial code→key maps, and all of them fell back to the raw text for anything unmapped.
+
+**Rejected:**
+- Storing the i18n key and translating with the `translate` pipe in templates. It re-translates live, but it changes about 40 templates and every store's error type.
+- Keeping the server's validation strings for 400s: English, and it breaks the "no server prose" rule.
+- Mapping only the codes a user can reach today: there is no compile-time guard, so new codes would silently fall back.
+- A single error banner or dialog in this change: it is a visible redesign across dozens of pages and needs a design first.
+
+## ADR-046: Rental state model v1.1 — one `BookingStatus` value per spec state, T2 is one value plus a reason, every transition is a compare-and-set with an appended `BookingEvent`, and the server computes whose turn it is
+Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four forks below, then the full text explicitly, RL-02) | Area: backend (domain, persistence, bookings API, chat, notifications, availability) + frontend (bookings, chat card) | Spec: Rental Spec v1.1 §3–§5 (`knowledge/specs/rental/`)
+
+**Context:** the current machine has seven values: Pending 0, Approved 1, Rejected 2, Cancelled 3, Expired 4, Completed 5 and Active 7. Value 6 (`ReturnMarked`) is retired, and rows that still carry it were never migrated (C-15). The machine cannot express what spec v1.1 needs: a handover claimed but not confirmed (S3/S4), a return claimed but not confirmed (S6/S7), the 24 h closing window (S8), a dispute (S9), "closed by support" (T3), and the seven reasons a rental did not happen (T2). Transitions live in `BookingStatusTransitions`, and state sets are re-listed by hand in every consumer (`ListingsQueryService` ×2, `BookingsStore` ×2, `HomePointStore`, the admin, profile and chat counters). This is the class of mistake behind the stale availability sets.
+
+**Decision (forks chosen by Tigran, 2026-10-19):**
+
+1. **One enum value per spec state.** `Booking.Status` stays a single `int` column. Values whose meaning carries over keep their number **and their name**, so their API strings do not change.
+
+   | Value | Name | Spec | Note |
+   |---|---|---|---|
+   | 0 | `Pending` | S1 | |
+   | 1 | `Approved` | S2 | |
+   | 8 | `HandoverClaimed` | S3 | new |
+   | 9 | `HandoverUnconfirmed` | S4 | new |
+   | 7 | `Active` | S5 | now means "the renter confirmed receipt", or a legacy owner mark (M-C) |
+   | 10 | `ReturnClaimed` | S6 | new |
+   | 11 | `ReturnUnconfirmed` | S7 | new; legacy value 6 rows land here (M-B) |
+   | 12 | `Closing` | S8 | new |
+   | 13 | `Disputed` | S9 | new |
+   | 5 | `Completed` | T1 | |
+   | 14 | `NotHappened` | T2 | new, always with `OutcomeReason` |
+   | 15 | `ClosedBySupport` | T3 | new |
+   | 2, 3, 4, 6 | — | — | **retired, never reused** (2/3/4 after the migration, see 2) |
+
+2. **T2 is one value plus a reason.** `NotHappened` (14) carries `Booking.OutcomeReason`, a string code that is non-null exactly when the status is 14: `owner_rejected` (TR-03), `withdrawn` (TR-04), `no_response` (TR-05), `cancelled_by_renter` (TR-08), `cancelled_by_owner` (TR-09), `no_handover` (TR-10), `handover_unconfirmed` (TR-15), `request_inactive` (TR-33, block in S1) and `agreed_no_rental` (TR-25/TR-34 with outcome T2). The migration moves rows with values 2/3/4 to 14 with a reason (MG-05 → `owner_rejected`, MG-06 → `cancelled_by_renter`, MG-02/MG-07 → `no_response`). The rejection reason text keeps living in `RejectionReason`.
+
+3. **State sets live in one Domain class, `BookingStates`.** No consumer may list enum values itself:
+   - `Live` = S1…S9. Used for in-flight bookings, which block a home-point change (`HomePointStore`).
+   - `Terminal` = T1, T2, T3.
+   - `HoldsDates` = live S1 (`ExpiresAt > now`) plus S2…**S9**. **S9 holds dates (Tigran, 2026-10-19).** A dispute is usually about a toy that was not returned. The dates free up when support closes the case. This corrects spec TR-01, §6 item 4 and §12 (they said S2–S8). The spec is amended in revision 9. Used by the create/approve overlap checks, the date-proposal acceptance (TR-28) and the calendar (`BookedDateRanges`).
+   - `ContactRevealed` = S2…S9, T1 and T3. A T3 always passed S2. T2 stays hidden, as Cancelled/Rejected are hidden today. Used by the listing pickup address and `BookingDetailResponse`.
+   - `CountsAsCompletedRental` = T1 only. Used by the profile, admin and chat member counters.
+   - `ReadOnlyChat` = T1, T2, T3 (R-3, Q-18). The chat rule itself is ADR-001's to amend (RL-03).
+
+4. **The transition table is the Domain source of truth.** `BookingStatusTransitions` becomes a table of `(from, action, actor) → to` rows, one per TR. Guards that need data (dates, consent marks, an open case) are checked by the service, not encoded in the table. The table is what `availableActions` (point 7) is computed from.
+
+5. **Every transition is a compare-and-set plus an event, in one transaction.** `UPDATE Bookings SET Status = @to, … WHERE Id = @id AND Status = @from`. The same transaction appends a `BookingEvent` row and the chat system line for it.
+   - When 0 rows change, the booking is re-read. If it is already in `@to` because of the **same action by the same actor**, the response is `200` with the current booking ("already done", AC-16), and no second event, chat line or notification is created.
+   - Otherwise the response is `409 booking.action_not_available` (ADR-045).
+   - The existing SERIALIZABLE transactions for create/approve stay. The overlap re-check uses `HoldsDates`.
+
+6. **`BookingEvent` is an append-only history, not the source of state.** Columns: `Id`, `BookingId`, `Seq` (unique per booking), `Transition` (e.g. `TR-07`, or `PROP-28` for date proposals), `FromStatus`, `ToStatus` (equal for TR-27…TR-32), `Actor` (new enum `BookingActor`: Renter, Owner, System, Support; `BookingParty` keeps its current meaning), `ActorUserId?`, `At` (UTC), `Reason?` (the cancel/reject/support note) and `Data?` (small JSON, e.g. the problem type for TR-22, or old/new dates and totals for a proposal).
+   - The event id is the dedupe key for its chat line and its notification (spec §5 "Без дублей"). The scheduler and notification design is RL-06.
+   - It also keeps what the state alone loses: who acted, and from which state S9 was entered.
+
+7. **Narrow columns on `Booking`, only for what queries need.**
+   - `OutcomeReason?` (point 2).
+   - `ReceiptUnconfirmed` (bool), set by TR-18 and shown in the history (A-3).
+   - `StatusChangedAt`: the start of TM-02, TM-06 and TM-07.
+   - `DueAt?`: the deadline of the current state's timer, materialised so that one indexed column drives the scheduler and the "by deadline" order of F-2. It is null in states without a timer and in S9, where timers stop. Leaving S9 is always terminal (§5 rule 4), so nothing ever resumes.
+   - `LegacyRule?`: the migration rule that produced the row (MG-x/M-x), which carries the M-A marker.
+   - The existing `ApprovedAt`, `ActiveAt` (entry into S5) and `CompletedAt` (entry into T1) stay.
+   - Defined by sibling ADRs, not here: the consent marks (RL-09), the price snapshot (RL-04), and the support case and date proposal entities (their own cards).
+
+8. **API: one POST per user action, and the server computes the turn.** Routes are under `/api/bookings/{id}`. Every action returns `BookingDetailResponse`.
+
+   | Route | Actor | TR |
+   |---|---|---|
+   | `POST /api/bookings` (exists) | renter | TR-01 |
+   | `approve` (exists) | owner | TR-02 |
+   | `reject` (exists) | owner | TR-03 |
+   | `cancel` (exists, widened) | renter in S1 → TR-04 (reason optional); renter in S2 → TR-08; owner in S2 → TR-09 (reason required) | TR-04, TR-08, TR-09 |
+   | `receipt-confirm` (new) | renter | TR-06, TR-11, TR-14 |
+   | `handover-claim` (new) | owner | TR-07 |
+   | `not-received` (new) | renter in S3 / owner in S6 | TR-12, TR-21 |
+   | `return-claim` (new) | renter | TR-16 |
+   | `close` (new) | owner, S2…S7; sets `ReceiptUnconfirmed` from S2/S3/S4 | TR-17, TR-18 |
+   | `problem` (new, body `{ type }`) | either party in S4…S7, renter in S8 | TR-22, TR-24 |
+   | `all-ok` (new) | renter in S8 | TR-23 (explicit) |
+   | `reviews-open` (new; consent details in RL-09) | renter in T1 | TR-32 |
+   | `date-proposals` + `…/{pid}/accept`, `reject`, `withdraw` (new) | either party | TR-27…TR-30 |
+
+   - `activate` and `complete` are **removed**, not given a new meaning. Their error codes `booking.not_activatable` and `booking.not_completable` retire with them.
+   - System transitions have no route: TR-05, TR-10, TR-13, TR-15, TR-19, TR-20, TR-23 by timeout, TR-26, TR-31 and TR-33.
+   - Support transitions go through the support-case endpoints: TR-25 and TR-34 (case ADR).
+   - `BookingDetailResponse`, `BookingResponse` and `BookingRequestResponse` gain:
+     - `outcomeReason?`;
+     - `receiptUnconfirmed`;
+     - `turn` (`renter` | `owner` | `support` | `none`, as seen by the caller);
+     - `dueAt?`;
+     - `availableActions[]` for the caller. These are the action names above, taken from the table in point 4 after the guards.
+
+     The UI renders buttons from `availableActions` and never re-derives guards. The F-category counters and the chat card use the same computation (AC-13, RL-44). The UI coercion of unknown statuses to `PendingApproval` is deleted with the dead UI values (A-1).
+
+9. **Every TR maps to storage and API.** The table below covers all 34 transitions.
+
+   | TR | Storage effect | API |
+   |---|---|---|
+   | 01 | insert, S1, `DueAt = ExpiresAt` | POST /bookings |
+   | 02 | S1→S2, `ApprovedAt`, `DueAt` = end of the return date (TM-04) | approve |
+   | 03, 04, 05, 08, 09, 33 | →T2 + reason | reject / cancel / system |
+   | 06, 11, 14 | →S5, `ActiveAt`, `DueAt` = return date + 7 (TM-05) | receipt-confirm |
+   | 07 | S2→S3, `DueAt` = +24 h (TM-02) | handover-claim |
+   | 10, 15 | →T2 `no_handover` / `handover_unconfirmed` | system |
+   | 12, 21, 22, 24, 26 | →S9, `DueAt = null`, case created in the same transaction | not-received / problem / system |
+   | 13 | S3→S4, `DueAt` = return date + 7 (TM-03) | system |
+   | 16 | S5→S6, `DueAt` = +48 h (TM-06) | return-claim |
+   | 17, 18 | →S8, `DueAt` = +24 h (TM-07); 18 sets `ReceiptUnconfirmed` | close |
+   | 19, 20 | →S7, `DueAt = null` | system |
+   | 23 | S8→T1, `CompletedAt` (+ renter consent if explicit, RL-09) | all-ok / system |
+   | 25 | S9→T1/T2/T3 (T2 reason `agreed_no_rental`) | support case |
+   | 27–31 | status unchanged; proposal entity + event; 28 moves the dates and recomputes `DueAt` | date-proposals |
+   | 32 | status unchanged; consent mark (RL-09) + event | reviews-open |
+   | 34 | T*→T1/T2/T3, consent marks untouched | support case |
+
+**Why:** the spec defines twelve named states, and each has exactly one owner of the next move and one deadline. One value per state turns the transition table into a 1:1 lookup and keeps "which bookings are in state X" a plain indexed filter. That matters for the scheduler, the F-categories and availability. A coarse status plus flags would let impossible combinations exist and make every query re-derive the state. Collapsing T2 makes "the rental did not happen" one check instead of seven. Server-computed `turn`/`availableActions` keeps one implementation of the guards (C#), not two. `BookingEvent` covers what the spec requires of every transition: an authored chat line, idempotency, dedupe and history. The rental stays a row, so no event-sourcing architecture is needed.
+
+**Rejected:**
+- (a) **A coarse phase plus timestamps/flags, with the state computed.** Fewer enum values, but invalid combinations are representable and queries and indexes are harder.
+- (b) **Event sourcing** (state as a projection of the event log). It is a new architecture for one entity, and nothing here needs a replay.
+- (c) **Keeping Rejected/Cancelled/Expired and adding four more T2 values.** No data rewrite, but T2 becomes seven values that every consumer must list.
+- (d) **Giving `activate`/`complete` new meanings.** A stale client would silently do a different transition.
+- (e) **UI-computed turn and actions.** Guards duplicated across two repos, and the counters drift from the card.
+- (f) **A single `POST /transition { action }`.** It reads worse in Swagger and in per-action authorization.
+- (g) **S9 not holding dates** (the spec text before revision 9). A disputed, unreturned toy could be booked over.
+
+**Follow-ups (not done by this ADR):**
+- CLAUDE.md "Status machines" → rewrite the BookingStatus line to the table in point 1 (retired 2/3/4/6) once the schema lands (RL-14).
+- Spec revision 9: TR-01, §6 item 4 and §12 say S2–**S9**. Pending: revision 8 (P-6 → F-7) is uncommitted in the working tree from another edit and goes first.
+- RL-14: the schema and EF migration (`OutcomeReason`, `ReceiptUnconfirmed`, `StatusChangedAt`, `DueAt` + index, `LegacyRule`, the `BookingEvents` table). The migration needs human review.
+- contract-guardian: the DTO fields and routes in point 8.
+- RL-03 (ADR-001: chat read-only, the pill vocabulary per state), RL-04 (price snapshot), RL-06 (scheduler over `DueAt`, notification dedupe by event id), RL-09 (consent marks), the support-case ADR and the date-proposal entity.
+
+## ADR-047: Rental price — a listing has a `Price` per `PriceUnit`; the total is "every started period" (B-2); a booking snapshots price and unit at creation and is never repriced; "hourly" is retired
+Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — forks and text, RL-04) | Area: backend (domain, listings, bookings, seed) + frontend (listing form, cards, booking page, calendar preview) | Spec: Rental Spec v1.1 §11 (B-2), §6 item 5 (Q-8, Q-19); migration §3.1–§3.2 (M-J, M-K, Q-15)
+
+**Context:** no ADR records what `PriceUnit` means. `Listing.PricePerDay` holds the owner's number for **whatever** unit they chose. The server prices every booking as `days × PricePerDay` (`BookingsService.cs:117-136`), and the UI preview does the same. So "7 000 ֏ per week" costs 49 000 ֏ for 7 days (C-02). "Hourly" is offered and accepted (C-20), although rentals are counted in days. A booking stores only `TotalPrice`. The booking API returns the **current** listing price as `pricePerDay`, so a later price change rewrites what the booking appears to have cost (C-21). The name `PricePerDay` and its texts ("per day", `dailyRate.hint`) contradict the data (C-22), and the UI never shows the unit (C-23).
+
+**Decision:**
+
+1. **A listing's price is a price per its unit.** `PriceUnit` ∈ Daily 1, Weekly 2, Monthly 3, Yearly 4. `Hourly = 0` stays in the enum only for legacy rows (point 6). For pricing, a month = 30 days and a year = 365 days, not calendar units.
+2. **Rename `PricePerDay` → `Price` everywhere (Tigran, 2026-10-19).** This covers the column `Listings.PricePerDay` → `Listings.Price` (EF migration, a rename with no data change), `Listing.Price`, every DTO property and JSON field `pricePerDay` → `price`, the create/update listing requests, and the UI models, services, forms, fixtures and e2e mocks.
+   - Today that is about 24 API files plus 11 test files and about 21 UI files plus 16 specs, listed in RL-15/RL-20.
+   - This **is a breaking contract change**. It ships as one coordinated route-8 change through contract-guardian. API and UI deploy together from one compose stack, so there is no period with both field names.
+   - Texts that say "per day" for a price get fixed in the same change.
+   - The booking DTOs lose the field entirely (point 4).
+3. **Total = B-2, "every started period is paid in full".** N = max(1, return − pickup) (ADR-043). Day: N × p · week: ⌈N/7⌉ × p · month: ⌈N/30⌉ × p · year: ⌈N/365⌉ × p.
+   - The result is whole dram. No rounding is needed (ADR-019).
+   - **One calculator per side.** `RentalPrice` in Domain, next to `RentalPeriod`, and `rental-price.utils.ts` in the UI, next to `countRentalDays`. Both run the same TC-P-01…TC-P-26 table.
+   - **The server is the source of truth.** The UI preview is only a preview. After submit the UI shows the server's `TotalPrice` (AC-29).
+4. **A booking snapshots price and unit at creation.** New columns `Booking.UnitPrice` (decimal?, the listing `Price` at TR-01) and `Booking.PriceUnit` (PriceUnit?) are written once and never changed.
+   - `TotalPrice` is written at TR-01 and then changes **only** when a date proposal is accepted (TR-28). The recomputation uses the **snapshot** and the formula in point 3, never the current listing price (Q-8, TC-P-23).
+   - `TotalPrice` is never recomputed for early or late handover or return, or for listing price changes (§11.2, §11.5).
+   - **Migrated bookings have `UnitPrice = PriceUnit = null`, and nothing is backfilled (Q-19).** For them "propose other dates" (TR-27) is not in `availableActions` (ADR-046), and the API rejects it with `409 booking.date_change_unavailable` (TC-P-26).
+   - **The booking API shows only the snapshot.** `pricePerDay` is removed from `BookingResponse` and `BookingDetailResponse`. They gain `unitPrice?` and `priceUnit?` (null for migrated bookings). A booking never displays the listing's current price. The UI shows `TotalPrice` and, when the snapshot exists, "K periods × price".
+5. **"Hourly" is not offered or accepted.** The listing form's unit picker drops it. Create and update with `Hourly` return `400 listing.price_unit_not_allowed` (AC-31, TC-P-21). That includes a request that omits the unit, which binds to `0 = Hourly`.
+6. **Legacy hourly listings (M-K (1) + (a), delegated):**
+   - they stay published but are not bookable: TR-01 returns `409 booking.listing_price_updating` (TC-P-24);
+   - the UI shows "Владелец обновляет цену" whenever the listing's `priceUnit` is `Hourly`, and there is **no** separate API flag;
+   - "hourly" cannot be re-selected when editing;
+   - the owner is asked once to pick a unit (a notification, routed through RL-06);
+   - live S1 requests on them can still be approved or rejected at the amount the renter saw.
+   - Known risk: an inactive owner leaves the listing unbookable indefinitely. There is no hide rule.
+7. **Migration (delegated, migration §3.2).**
+   - M-J (1): live S1 requests on week/month/year listings are repriced once by point 3. The total can only go down. A chat line shows old → new, and the renter is notified.
+   - Q-15 (A): agreed bookings on non-daily prices keep their total, and support gets the list.
+   - No agreed `TotalPrice` (S2–S8 or terminal) is ever touched.
+8. **Display:** a listing price is always shown with its unit ("7 000 ֏ / неделя") on the card, the listing page, the map popup and the owner page (AC-30), formatted only by `DramCurrencyPipe` (ADR-019). The booking page shows "N дней → K недель × p = total". When N is not a multiple of the period, it adds the hint "За ту же сумму можно вернуть до {дата}". No text promises payment through DoRent (O-13, ADR-014).
+
+**Why:** B-2 was Tigran's product decision. This ADR records the mechanism so that the two copies of the formula, the snapshot and the retired unit do not drift apart. Snapshotting makes a booking's price a fact of the agreement, not a live read of a listing the owner can edit. Leaving migrated bookings without a snapshot avoids inventing an agreed basis that never existed (Q-19). The rename removes a field name that every reader misreads. Tigran accepted the one-time breaking change, and the single compose deploy makes it cheap.
+
+**Rejected:**
+- (a) Keeping the `PricePerDay` name and only documenting it (audit A-11 rec. 3). No contract break, but the misleading name stays forever.
+- (b) Renaming only in C#, with the column and JSON names mapped to the old ones. The code and the contract would disagree.
+- (c) The booking API falling back to the current listing price for migrated bookings. It shows an amount the parties never agreed on.
+- (d) Backfilling snapshots, from the current listing price or from `TotalPrice / days`. That reprices on a basis that did not exist, and the original unit cannot be recovered (Q-19).
+- (e) A separate `isBookable` / `priceUpdateRequired` API flag. Today it depends on a single cause the UI can read from `priceUnit`, so it would be a contract field for nothing.
+- (f) Auto-converting "hourly" to "daily" with the same number. It changes the owner's price without consent (M-K (3)).
+- (g) Pro-rata pricing (N/7 × weekly price). Tigran chose B-2.
+
+**Follow-ups:**
+- RL-15 — schema: `Booking.UnitPrice`, `Booking.PriceUnit`, and the `Listings.PricePerDay` → `Price` column rename. The migration needs human review.
+- RL-20 — `RentalPrice`, the snapshot at create, TC-P server-side, and the rename through contract-guardian.
+- RL-22 — the unit shown everywhere.
+- RL-23 — the Hourly rejection.
+- The M-J/M-K/Q-15 migration steps.
+- The decisions register row "(нет ADR) PriceUnit" now points here.
+
+## ADR-048: Yerevan time is a fixed UTC+4; time comes from `TimeProvider`; timers and reminders run on Hangfire; non-urgent notifications wait in an outbox during quiet hours
+Date: 2026-10-19 | Status: accepted — every choice below picked by Tigran, 2026-10-19 (RL-06) | Area: backend (bookings, notifications, background jobs) + frontend (date logic) | Spec: v1.1 §2, §5, §13; O-2, Q-6
+
+**Decision:**
+1. **Calendar.** Every calendar rule (today, end of day, 09:00/18:00, quiet hours 22:00–09:00) uses Asia/Yerevan as a **fixed UTC+4**, with one helper per side (`YerevanCalendar` in Domain, a twin util in the UI). Storage stays UTC.
+2. **Clock.** Booking, chat and notification code reads time from an injected `TimeProvider`, already used by auth. There is no direct `DateTime.UtcNow`, so tests control time.
+3. **Scheduler: Hangfire** on our SQL Server.
+   - Each timer (TM-01…TM-08, and the urgent "N hours before" reminders) is a job enqueued in the same transaction that enters the state. It runs "TR-x if the booking is still in state Y with the same `DueAt`" (ADR-046).
+   - A stale job is a harmless no-op, so cancelling one is only best effort.
+   - The 09:00/18:00 reminders are two recurring jobs on Yerevan time.
+   - An hourly recurring catch-up handles bookings whose `DueAt` passed without a job (the M-012 class).
+   - The dashboard is Admin-only or off in production.
+   - `BookingExpiryBackgroundService` is replaced by this.
+4. **Quiet hours: an outbox.** A non-urgent notification created during quiet hours goes to `NotificationOutbox` with `DeliverAt = 09:00`. At that time a job turns it into a normal `Notification` and sends it on every channel. A `Notification` row therefore always means "visible". Urgent notifications (spec §5 list) bypass the outbox.
+5. **No duplicates.** A unique `DedupeKey` (rental + kind + slot or event id) on both the outbox and the notification table.
+
+**Rejected:** a `TimeZoneInfo` lookup (needs tzdata in the image and Intl in the browser, for a zone without DST); a hand-rolled polling hosted service (Tigran chose a library); Quartz.NET (more setup, no dashboard); `DeliverAt` on `Notification` (every feed and counter query must remember the filter).
+
+## ADR-049: A support case is its own aggregate tied to one rental; support reads and writes the rental chat only while a case on it is open
+Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-08) | Area: backend (support, chat authorization, admin, blocking) + frontend (admin queue, case view) | Spec: v1.1 §9 (O-8, O-12, Q-7, Q-10, Q-11, Q-20), TR-12/21/22/24/25/26/33/34; audit A-9, A-10, C-08, C-09
+
+**Decision:**
+1. **A new `SupportCase` aggregate, separate from `Report`.** It references one booking and holds:
+   - a type (not received / not returned / damage / block / other) and a status (open, closed, reopened);
+   - party statements, each with an author and a time, including statements support records for a blocked party (Q-11: recorded, never actions on their behalf);
+   - up to 5 photos;
+   - a support log;
+   - an outcome history: every close and re-close with T1/T2/T3 and a mandatory note (TR-25, TR-34).
+   Reopening requires a reason (Q-10).
+2. **Who creates a case.** Only a participant of that rental (TR-12, TR-21, TR-22, TR-24), or the system when a party is blocked (TR-26). Creation checks participation, so the C-08 hole is not repeated. `Report` keeps doing listing/user/message moderation. Its own participation fix is RL-11.
+3. **Authorization predicate (testable):** `canAccessRentalChat(user, booking)` = user is the renter or the owner **OR** (user is Admin **AND** there is at least one open case for that booking). It is evaluated on every chat read and send (ADR-001, 2026-10-19 amendment). Support never becomes a participant.
+4. **Audit log.** Each support opening of a rental chat writes `SupportChatAccess` (admin id, case id, booking id, time). It never stores message text.
+5. **Blocking (closes ADR-016's open consequence via O-12).**
+   - When a party in S2–S8 is blocked, the system creates a "block" case and moves the booking to S9 **in the same transaction as the block**.
+   - In S1, a block ends the request without a case (TR-33).
+
+**Rejected:** extending `Report` with a booking target (different lifecycle, outcome and access rules, and it would inherit C-08); support as a temporary chat participant (ADR-001 amendment, (e)); permanent admin read access to rental chats (O-8 limits it to open cases).
+
+## ADR-050: Reviews open only with both parties' consent — two consent marks on the booking, written only by the parties' own actions
+Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-09) | Area: backend (reviews, bookings) + frontend (review prompts) | Spec: v1.1 §10; B-1, Q-16, Q-17, P-1, P-3, P-4, M-I; audit A-15, C-01
+
+**Decision:**
+1. **Two marks on `Booking`: `OwnerReviewConsentAt` and `RenterReviewConsentAt`.**
+   - The owner's mark is written by "Получил обратно, закрыть аренду" (TR-17/18).
+   - The renter's mark is written by the explicit "Всё в порядке" (TR-23) or later by "Всё было в порядке — открыть отзывы" (TR-32, no deadline, no reminders).
+   - There is no other writer. Silence (TR-23 by timeout), the system and support (TR-25, TR-34) never write a mark.
+2. **Reviews are open** iff the booking is T1 **and** both marks exist. This covers all three kinds (toy, owner, renter). Otherwise a review attempt returns `409 review.not_open` (ADR-045). This replaces the "status is Completed" gate in `ReviewsService`.
+3. **TR-32** is available in T1 only when the owner's mark exists and the renter's does not (Q-17).
+4. **Outcome change (TR-34, P-4).** Leaving T1 closes reviews, and reviews already left are not deleted automatically (support decides). Returning to T1 reopens them by the same marks.
+5. **Migration (M-I).** Legacy owner completion (MG-04) sets the owner's mark at `CompletedAt`, and the renter can then consent via TR-32. M-A rows get no marks. Existing reviews are kept.
+
+**Rejected:** D-6 "closing = consent" (cancelled by B-1); support consenting for a party (Q-16 A); a consent flag derived from booking events at read time (the marks are the queryable fact the review gate needs).
