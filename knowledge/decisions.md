@@ -1266,3 +1266,127 @@ Date: 2026-10-18 | Area: frontend (all features, `src/app/api/`), i18n, security
 - Keeping the server's validation strings for 400s: English, and it breaks the "no server prose" rule.
 - Mapping only the codes a user can reach today: there is no compile-time guard, so new codes would silently fall back.
 - A single error banner or dialog in this change: it is a visible redesign across dozens of pages and needs a design first.
+
+## ADR-046: Rental state model v1.1 — one `BookingStatus` value per spec state, T2 is one value plus a reason, every transition is a compare-and-set with an appended `BookingEvent`, and the server computes whose turn it is
+Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four forks below, then the full text explicitly, RL-02) | Area: backend (domain, persistence, bookings API, chat, notifications, availability) + frontend (bookings, chat card) | Spec: Rental Spec v1.1 §3–§5 (`knowledge/specs/rental/`)
+
+**Context:** the current machine has seven values: Pending 0, Approved 1, Rejected 2, Cancelled 3, Expired 4, Completed 5 and Active 7. Value 6 (`ReturnMarked`) is retired, and rows that still carry it were never migrated (C-15). The machine cannot express what spec v1.1 needs: a handover claimed but not confirmed (S3/S4), a return claimed but not confirmed (S6/S7), the 24 h closing window (S8), a dispute (S9), "closed by support" (T3), and the seven reasons a rental did not happen (T2). Transitions live in `BookingStatusTransitions`, and state sets are re-listed by hand in every consumer (`ListingsQueryService` ×2, `BookingsStore` ×2, `HomePointStore`, the admin, profile and chat counters). This is the class of mistake behind the stale availability sets.
+
+**Decision (forks chosen by Tigran, 2026-10-19):**
+
+1. **One enum value per spec state.** `Booking.Status` stays a single `int` column. Values whose meaning carries over keep their number **and their name**, so their API strings do not change.
+
+   | Value | Name | Spec | Note |
+   |---|---|---|---|
+   | 0 | `Pending` | S1 | |
+   | 1 | `Approved` | S2 | |
+   | 8 | `HandoverClaimed` | S3 | new |
+   | 9 | `HandoverUnconfirmed` | S4 | new |
+   | 7 | `Active` | S5 | now means "the renter confirmed receipt", or a legacy owner mark (M-C) |
+   | 10 | `ReturnClaimed` | S6 | new |
+   | 11 | `ReturnUnconfirmed` | S7 | new; legacy value 6 rows land here (M-B) |
+   | 12 | `Closing` | S8 | new |
+   | 13 | `Disputed` | S9 | new |
+   | 5 | `Completed` | T1 | |
+   | 14 | `NotHappened` | T2 | new, always with `OutcomeReason` |
+   | 15 | `ClosedBySupport` | T3 | new |
+   | 2, 3, 4, 6 | — | — | **retired, never reused** (2/3/4 after the migration, see 2) |
+
+2. **T2 is one value plus a reason.** `NotHappened` (14) carries `Booking.OutcomeReason`, a string code that is non-null exactly when the status is 14: `owner_rejected` (TR-03), `withdrawn` (TR-04), `no_response` (TR-05), `cancelled_by_renter` (TR-08), `cancelled_by_owner` (TR-09), `no_handover` (TR-10), `handover_unconfirmed` (TR-15), `request_inactive` (TR-33, block in S1) and `agreed_no_rental` (TR-25/TR-34 with outcome T2). The migration moves rows with values 2/3/4 to 14 with a reason (MG-05 → `owner_rejected`, MG-06 → `cancelled_by_renter`, MG-02/MG-07 → `no_response`). The rejection reason text keeps living in `RejectionReason`.
+
+3. **State sets live in one Domain class, `BookingStates`.** No consumer may list enum values itself:
+   - `Live` = S1…S9. Used for in-flight bookings, which block a home-point change (`HomePointStore`).
+   - `Terminal` = T1, T2, T3.
+   - `HoldsDates` = live S1 (`ExpiresAt > now`) plus S2…**S9**. **S9 holds dates (Tigran, 2026-10-19).** A dispute is usually about a toy that was not returned. The dates free up when support closes the case. This corrects spec TR-01, §6 item 4 and §12 (they said S2–S8). The spec is amended in revision 9. Used by the create/approve overlap checks, the date-proposal acceptance (TR-28) and the calendar (`BookedDateRanges`).
+   - `ContactRevealed` = S2…S9, T1 and T3. A T3 always passed S2. T2 stays hidden, as Cancelled/Rejected are hidden today. Used by the listing pickup address and `BookingDetailResponse`.
+   - `CountsAsCompletedRental` = T1 only. Used by the profile, admin and chat member counters.
+   - `ReadOnlyChat` = T1, T2, T3 (R-3, Q-18). The chat rule itself is ADR-001's to amend (RL-03).
+
+4. **The transition table is the Domain source of truth.** `BookingStatusTransitions` becomes a table of `(from, action, actor) → to` rows, one per TR. Guards that need data (dates, consent marks, an open case) are checked by the service, not encoded in the table. The table is what `availableActions` (point 7) is computed from.
+
+5. **Every transition is a compare-and-set plus an event, in one transaction.** `UPDATE Bookings SET Status = @to, … WHERE Id = @id AND Status = @from`. The same transaction appends a `BookingEvent` row and the chat system line for it.
+   - When 0 rows change, the booking is re-read. If it is already in `@to` because of the **same action by the same actor**, the response is `200` with the current booking ("already done", AC-16), and no second event, chat line or notification is created.
+   - Otherwise the response is `409 booking.action_not_available` (ADR-045).
+   - The existing SERIALIZABLE transactions for create/approve stay. The overlap re-check uses `HoldsDates`.
+
+6. **`BookingEvent` is an append-only history, not the source of state.** Columns: `Id`, `BookingId`, `Seq` (unique per booking), `Transition` (e.g. `TR-07`, or `PROP-28` for date proposals), `FromStatus`, `ToStatus` (equal for TR-27…TR-32), `Actor` (new enum `BookingActor`: Renter, Owner, System, Support; `BookingParty` keeps its current meaning), `ActorUserId?`, `At` (UTC), `Reason?` (the cancel/reject/support note) and `Data?` (small JSON, e.g. the problem type for TR-22, or old/new dates and totals for a proposal).
+   - The event id is the dedupe key for its chat line and its notification (spec §5 "Без дублей"). The scheduler and notification design is RL-06.
+   - It also keeps what the state alone loses: who acted, and from which state S9 was entered.
+
+7. **Narrow columns on `Booking`, only for what queries need.**
+   - `OutcomeReason?` (point 2).
+   - `ReceiptUnconfirmed` (bool), set by TR-18 and shown in the history (A-3).
+   - `StatusChangedAt`: the start of TM-02, TM-06 and TM-07.
+   - `DueAt?`: the deadline of the current state's timer, materialised so that one indexed column drives the scheduler and the "by deadline" order of F-2. It is null in states without a timer and in S9, where timers stop. Leaving S9 is always terminal (§5 rule 4), so nothing ever resumes.
+   - `LegacyRule?`: the migration rule that produced the row (MG-x/M-x), which carries the M-A marker.
+   - The existing `ApprovedAt`, `ActiveAt` (entry into S5) and `CompletedAt` (entry into T1) stay.
+   - Defined by sibling ADRs, not here: the consent marks (RL-09), the price snapshot (RL-04), and the support case and date proposal entities (their own cards).
+
+8. **API: one POST per user action, and the server computes the turn.** Routes are under `/api/bookings/{id}`. Every action returns `BookingDetailResponse`.
+
+   | Route | Actor | TR |
+   |---|---|---|
+   | `POST /api/bookings` (exists) | renter | TR-01 |
+   | `approve` (exists) | owner | TR-02 |
+   | `reject` (exists) | owner | TR-03 |
+   | `cancel` (exists, widened) | renter in S1 → TR-04 (reason optional); renter in S2 → TR-08; owner in S2 → TR-09 (reason required) | TR-04, TR-08, TR-09 |
+   | `receipt-confirm` (new) | renter | TR-06, TR-11, TR-14 |
+   | `handover-claim` (new) | owner | TR-07 |
+   | `not-received` (new) | renter in S3 / owner in S6 | TR-12, TR-21 |
+   | `return-claim` (new) | renter | TR-16 |
+   | `close` (new) | owner, S2…S7; sets `ReceiptUnconfirmed` from S2/S3/S4 | TR-17, TR-18 |
+   | `problem` (new, body `{ type }`) | either party in S4…S7, renter in S8 | TR-22, TR-24 |
+   | `all-ok` (new) | renter in S8 | TR-23 (explicit) |
+   | `reviews-open` (new; consent details in RL-09) | renter in T1 | TR-32 |
+   | `date-proposals` + `…/{pid}/accept`, `reject`, `withdraw` (new) | either party | TR-27…TR-30 |
+
+   - `activate` and `complete` are **removed**, not given a new meaning. Their error codes `booking.not_activatable` and `booking.not_completable` retire with them.
+   - System transitions have no route: TR-05, TR-10, TR-13, TR-15, TR-19, TR-20, TR-23 by timeout, TR-26, TR-31 and TR-33.
+   - Support transitions go through the support-case endpoints: TR-25 and TR-34 (case ADR).
+   - `BookingDetailResponse`, `BookingResponse` and `BookingRequestResponse` gain:
+     - `outcomeReason?`;
+     - `receiptUnconfirmed`;
+     - `turn` (`renter` | `owner` | `support` | `none`, as seen by the caller);
+     - `dueAt?`;
+     - `availableActions[]` for the caller. These are the action names above, taken from the table in point 4 after the guards.
+
+     The UI renders buttons from `availableActions` and never re-derives guards. The F-category counters and the chat card use the same computation (AC-13, RL-44). The UI coercion of unknown statuses to `PendingApproval` is deleted with the dead UI values (A-1).
+
+9. **Every TR maps to storage and API.** The table below covers all 34 transitions.
+
+   | TR | Storage effect | API |
+   |---|---|---|
+   | 01 | insert, S1, `DueAt = ExpiresAt` | POST /bookings |
+   | 02 | S1→S2, `ApprovedAt`, `DueAt` = end of the return date (TM-04) | approve |
+   | 03, 04, 05, 08, 09, 33 | →T2 + reason | reject / cancel / system |
+   | 06, 11, 14 | →S5, `ActiveAt`, `DueAt` = return date + 7 (TM-05) | receipt-confirm |
+   | 07 | S2→S3, `DueAt` = +24 h (TM-02) | handover-claim |
+   | 10, 15 | →T2 `no_handover` / `handover_unconfirmed` | system |
+   | 12, 21, 22, 24, 26 | →S9, `DueAt = null`, case created in the same transaction | not-received / problem / system |
+   | 13 | S3→S4, `DueAt` = return date + 7 (TM-03) | system |
+   | 16 | S5→S6, `DueAt` = +48 h (TM-06) | return-claim |
+   | 17, 18 | →S8, `DueAt` = +24 h (TM-07); 18 sets `ReceiptUnconfirmed` | close |
+   | 19, 20 | →S7, `DueAt = null` | system |
+   | 23 | S8→T1, `CompletedAt` (+ renter consent if explicit, RL-09) | all-ok / system |
+   | 25 | S9→T1/T2/T3 (T2 reason `agreed_no_rental`) | support case |
+   | 27–31 | status unchanged; proposal entity + event; 28 moves the dates and recomputes `DueAt` | date-proposals |
+   | 32 | status unchanged; consent mark (RL-09) + event | reviews-open |
+   | 34 | T*→T1/T2/T3, consent marks untouched | support case |
+
+**Why:** the spec defines twelve named states, and each has exactly one owner of the next move and one deadline. One value per state turns the transition table into a 1:1 lookup and keeps "which bookings are in state X" a plain indexed filter. That matters for the scheduler, the F-categories and availability. A coarse status plus flags would let impossible combinations exist and make every query re-derive the state. Collapsing T2 makes "the rental did not happen" one check instead of seven. Server-computed `turn`/`availableActions` keeps one implementation of the guards (C#), not two. `BookingEvent` covers what the spec requires of every transition: an authored chat line, idempotency, dedupe and history. The rental stays a row, so no event-sourcing architecture is needed.
+
+**Rejected:**
+- (a) **A coarse phase plus timestamps/flags, with the state computed.** Fewer enum values, but invalid combinations are representable and queries and indexes are harder.
+- (b) **Event sourcing** (state as a projection of the event log). It is a new architecture for one entity, and nothing here needs a replay.
+- (c) **Keeping Rejected/Cancelled/Expired and adding four more T2 values.** No data rewrite, but T2 becomes seven values that every consumer must list.
+- (d) **Giving `activate`/`complete` new meanings.** A stale client would silently do a different transition.
+- (e) **UI-computed turn and actions.** Guards duplicated across two repos, and the counters drift from the card.
+- (f) **A single `POST /transition { action }`.** It reads worse in Swagger and in per-action authorization.
+- (g) **S9 not holding dates** (the spec text before revision 9). A disputed, unreturned toy could be booked over.
+
+**Follow-ups (not done by this ADR):**
+- CLAUDE.md "Status machines" → rewrite the BookingStatus line to the table in point 1 (retired 2/3/4/6) once the schema lands (RL-14).
+- Spec revision 9: TR-01, §6 item 4 and §12 say S2–**S9**. Pending: revision 8 (P-6 → F-7) is uncommitted in the working tree from another edit and goes first.
+- RL-14: the schema and EF migration (`OutcomeReason`, `ReceiptUnconfirmed`, `StatusChangedAt`, `DueAt` + index, `LegacyRule`, the `BookingEvents` table). The migration needs human review.
+- contract-guardian: the DTO fields and routes in point 8.
+- RL-03 (ADR-001: chat read-only, the pill vocabulary per state), RL-04 (price snapshot), RL-06 (scheduler over `DueAt`, notification dedupe by event id), RL-09 (consent marks), the support-case ADR and the date-proposal entity.
