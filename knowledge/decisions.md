@@ -45,6 +45,10 @@ Date: 2026-07-07 | Status: accepted
 - **How:** a nullable `ChatMessage.ActorUserId`, set on system lines caused by a user. The unread queries exclude `ActorUserId == viewer` as well as `SenderId == viewer`.
 - **The global chat badge** refreshes as soon as a realtime message arrives, not only on the 60 s poll.
 - **Rejected:** counting the line for both parties. The person who pressed "Accept" would see a "1" for their own action.
+- **Implemented 2026-10-20 (RC-5):**
+  - Migration `ChatMessageActorUserId` adds a nullable `ActorUserId` with an FK to Users (Restrict); Tigran approved it.
+  - Expiry now posts a line too. It is `ChatSystemKind.Expired = 7` with the token `expired`, written with a null actor, so it is unread for both parties (Tigran, 2026-10-20).
+  - The 1-minute sweep announces only the bookings it actually moved to Expired.
 
 ## ADR-002: Chat image attachments are served as unauthenticated capability URLs
 Date: 2026-07-11 | Status: accepted (**deliberate trade-off, not an oversight**)
