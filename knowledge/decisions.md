@@ -37,6 +37,9 @@ Date: 2026-07-07 | Status: accepted
 - (d) Keeping `closed` as an override token. It hides whether the rental completed or did not happen.
 - (e) Support as a temporary participant. That is event-driven state again: a missed removal means permanent access. Audit A-9 asks for a per-request check.
 
+**Amended 2026-10-20 — stage-1 rental card, before ADR-046 lands (Tigran, 2026-10-20, RC-1/RC-2).** On the current backend, Rejected, Cancelled and Expired map to the T2 token `not_happened` (point 5) instead of falling back to `requested`. This applies to `status` and `bookingStatus` on the details response and to the inbox preview. The reason travels in `rejectionReason`. These chats stay open (point 4). Read-only is applied to `Completed` only until ADR-046 lands.
+**Rejected:** separate `rejected` / `cancelled` / `expired` tokens — vocabulary point 5 does not have, and ADR-046 collapses them into T2 anyway.
+
 ## ADR-002: Chat image attachments are served as unauthenticated capability URLs
 Date: 2026-07-11 | Status: accepted (**deliberate trade-off, not an oversight**)
 **Decision:** Chat attachments are written to a conversation-scoped directory with a server-generated filename and served by the same `UseStaticFiles` pipeline as listing images — i.e. **anyone holding the URL can fetch the file without being a participant, or even authenticated**. The URL is unguessable (GUID conversation path + GUID filename), so possession of the URL *is* the authorization ("capability URL").

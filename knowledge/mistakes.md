@@ -587,3 +587,9 @@ Date: 2026-10-18 | Area: frontend (all features, `src/app/api/`), security
 **Also this session:**
 - M-067 repeated a third time: ADR-045 was appended with a quoted heredoc. The content survived (backticks verified) and this entry went through Edit. The rule stays: read M-063/M-067 before the first knowledge write of a session.
 - `node tools/trello-sync/sync.js` ran while #46 was in Doing and #23/#105 were in Done. It created 3 duplicate cards (#128–#130), exactly the trap described in the trello-card-lifecycle memory. Tigran deleted them, and 3f8babd drops those backlog items. Rule: before running sync.js, remove from `backlog.json` every item whose card has left To Do.
+
+## M-073: A touch-target check measured a PrimeNG popup mid-animation and reported a false 41px failure
+Date: 2026-10-20 | Area: verification (frontend, PrimeNG overlays)
+**Symptom:** the verifier failed the RC-2b chat rental-card menu: items measured 41-42px against the 44px minimum. The CSS rule was correct. frontend-dev and a settled re-measure both got 44px.
+**Cause:** the popup scales in. While `p-anchored-overlay-enter-active` is on it, `getBoundingClientRect()` returns the transformed size (40.92 = 44 × 0.93). The check read the geometry right after the click.
+**Rule:** to measure p-menu, p-dialog or any PrimeNG overlay, wait until no `*enter-active` class remains, plus 300ms. Measure with `offsetHeight`, which ignores transforms, and cross-check with `getBoundingClientRect`. A size failure in an overlay counts only after a settled re-measure.
