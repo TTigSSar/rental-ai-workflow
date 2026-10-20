@@ -1436,6 +1436,12 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
 - **Supersedes:** spec §3 principle 1 ("silence confirms nothing") for the handover. The O-9 return exception now has a handover twin.
 - **Follow-up:** spec revision 10 and the S4 mentions in ADR-001 (tokens), ADR-048 (timers) and this ADR's tables (Trello, Rental Lifecycle list). Implemented with the ADR-046 slice, not with stage 1 of the chat card (RC-1…RC-4).
 
+**Note (2026-10-20, chat card stage 1, RC-1…RC-4):**
+- `turn` (`owner` | `renter` | `none`) is also returned on the chat conversation details, together with `viewerRole`.
+- Until this ADR lands, an interim helper computes it: `ChatTokens.TurnToken`, where Pending and Approved give `owner` and everything else gives `none`. That helper is the single place to replace with point 8's computation.
+- The chat card's orange bar and its "Your turn / Nothing needed from you" badge follow `turn` only (Tigran, 2026-10-20).
+- Its buttons are still status-derived until `availableActions` exists.
+
 ## ADR-047: Rental price — a listing has a `Price` per `PriceUnit`; the total is "every started period" (B-2); a booking snapshots price and unit at creation and is never repriced; "hourly" is retired
 Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — forks and text, RL-04) | Area: backend (domain, listings, bookings, seed) + frontend (listing form, cards, booking page, calendar preview) | Spec: Rental Spec v1.1 §11 (B-2), §6 item 5 (Q-8, Q-19); migration §3.1–§3.2 (M-J, M-K, Q-15)
 
