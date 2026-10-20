@@ -1543,3 +1543,9 @@ Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-09) | Area: backend 
 5. **Migration (M-I).** Legacy owner completion (MG-04) sets the owner's mark at `CompletedAt`, and the renter can then consent via TR-32. M-A rows get no marks. Existing reviews are kept.
 
 **Rejected:** D-6 "closing = consent" (cancelled by B-1); support consenting for a party (Q-16 A); a consent flag derived from booking events at read time (the marks are the queryable fact the review gate needs).
+
+## ADR-051: A chat system line is shown in the reader's language by the UI, from its `systemKind`; the stored body is a fixed English fallback
+Date: 2026-10-20 | Status: accepted (Tigran, 2026-10-20, RC-4 review) | Area: chat (backend emitter, inbox preview, thread)
+**Decision:** a system line is rendered client-side from its `systemKind` through `chat.system.*` keys, both in the thread and in the inbox preview. The inbox item tells the UI that its last message is a system line and of which kind. The stored body is a fixed English constant: a fallback for unknown kinds and logs. It never carries user data such as a rejection reason or code. The reason travels only in `rejectionReason` on the details response.
+**Why:** a system line has two readers who may use different languages, so one server-rendered string cannot fit both. The thread already localizes by `systemKind`. The inbox snippet showed English for ru/hy readers, and a raw reason code (`dates_unavailable`), which ADR-045 forbids for error prose.
+**Rejected:** (a) server-rendered per-recipient copy, as notifications do (ADR-025): it needs two stored snippets per line and a migration. (b) Only stripping the reason code: the snippet stays English for ru/hy.
