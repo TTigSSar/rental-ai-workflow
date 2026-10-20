@@ -1421,6 +1421,15 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
 - contract-guardian: the DTO fields and routes in point 8.
 - RL-03 (ADR-001: chat read-only, the pill vocabulary per state), RL-04 (price snapshot), RL-06 (scheduler over `DueAt`, notification dedupe by event id), RL-09 (consent marks), the support-case ADR and the date-proposal entity.
 
+**Amendment (Tigran, 2026-10-20): silence after "I handed it over" means received.**
+- **The rule.** In S3 the renter has 24 h (TM-02) to confirm receipt (TR-11) or say "Not received" (TR-12 → S9, unchanged). If neither happens, the system moves the rental **S3 → S5** and sets `ActiveAt` and `DueAt` = return date + 7 (TM-05).
+- **What the renter sees in S3:** "{owner} says the toy was handed over. Confirm you received it. If you don't confirm or report a problem within 24 h, receipt will be confirmed automatically."
+- **What disappears.** S4 `HandoverUnconfirmed` (value 9) is not introduced; 9 is reserved and never reused. TR-13 (S3→S4), TR-14, TR-15 (→T2 `handover_unconfirmed`), TM-03 and the `handover_unconfirmed` reason and chat token go too. `problem` (TR-22) is available from S5…S7 plus the S8 rule as before.
+- **Why.** It is simpler: one less state and one less timer, and the rental does not stall when the renter forgets to press the button.
+- **Risk accepted.** A false "I handed it over" plus a missed notification auto-confirms receipt. The renter still has "There is a problem" (TR-22) in S5.
+- **Supersedes:** spec §3 principle 1 ("silence confirms nothing") for the handover. The O-9 return exception now has a handover twin.
+- **Follow-up:** spec revision 10 and the S4 mentions in ADR-001 (tokens), ADR-048 (timers) and this ADR's tables (Trello, Rental Lifecycle list). Implemented with the ADR-046 slice, not with stage 1 of the chat card (RC-1…RC-4).
+
 ## ADR-047: Rental price — a listing has a `Price` per `PriceUnit`; the total is "every started period" (B-2); a booking snapshots price and unit at creation and is never repriced; "hourly" is retired
 Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — forks and text, RL-04) | Area: backend (domain, listings, bookings, seed) + frontend (listing form, cards, booking page, calendar preview) | Spec: Rental Spec v1.1 §11 (B-2), §6 item 5 (Q-8, Q-19); migration §3.1–§3.2 (M-J, M-K, Q-15)
 
