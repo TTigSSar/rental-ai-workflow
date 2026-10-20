@@ -39,6 +39,12 @@ Date: 2026-07-07 | Status: accepted
 
 **Amended 2026-10-20 — stage-1 rental card, before ADR-046 lands (Tigran, 2026-10-20, RC-1/RC-2).** On the current backend, Rejected, Cancelled and Expired map to the T2 token `not_happened` (point 5) instead of falling back to `requested`. This applies to `status` and `bookingStatus` on the details response and to the inbox preview. The reason travels in `rejectionReason`. These chats stay open (point 4). Read-only is applied to `Completed` only until ADR-046 lands.
 **Rejected:** separate `rejected` / `cancelled` / `expired` tokens — vocabulary point 5 does not have, and ADR-046 collapses them into T2 anyway.
+**Amended 2026-10-20 — a rental status change is an unread message (Tigran, 2026-10-20, RC-5).**
+- **Every rental status change posts a chat system line.** That line counts as unread, so it raises the chat badge.
+- **It counts for the other party, not for the person who acted.** A system transition (a timer) counts for both parties.
+- **How:** a nullable `ChatMessage.ActorUserId`, set on system lines caused by a user. The unread queries exclude `ActorUserId == viewer` as well as `SenderId == viewer`.
+- **The global chat badge** refreshes as soon as a realtime message arrives, not only on the 60 s poll.
+- **Rejected:** counting the line for both parties. The person who pressed "Accept" would see a "1" for their own action.
 
 ## ADR-002: Chat image attachments are served as unauthenticated capability URLs
 Date: 2026-07-11 | Status: accepted (**deliberate trade-off, not an oversight**)
