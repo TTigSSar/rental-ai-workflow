@@ -1051,6 +1051,10 @@ Date: 2026-10-13 | Area: frontend / design tokens, accessibility | Status: decid
 | blue (`--dash-blue`, message pill) | `#4a5fe3` | `#465ce2` | 4.54 on `#e8eaff` |
 | amber (`--dash-warn`, `--chat-warn`, `--note-warn`) | `#d97706` | `#a75c05` | 4.52 on `#fff1dc` |
 | danger (`--ui-color-danger`) | `#d9342b` | `#cc2d25` | 4.63 on `#fdecea` |
+| amber text ink, now one token `--ui-color-amber-ink` (`--dash-warn-ink`, `--chat-warn`, `--note-warn`, notification pickup/return) — Rental-Ui `14de17a`, `ef6d3b7`, 2026-10-21 | `#a75c05` | `#a45a05` | 4.58 on `#ffeedc` (active inbox row) |
+| chat inbox neutral status text (closed, not_happened, moderation) | `#9a99a3` | `--ui-color-text-secondary` `#6b6a75` | 4.69 on `#ffeedc` |
+| chat inbox active (booked) status text; the dot stays `#ff6008` | `--ui-color-primary` `#ff6008` | `--ui-color-primary-strong-hover` `#a83c00` | 5.59 on `#ffeedc` |
+| chat `closed` system icon (non-text) | `#9a99a3` | `--ui-color-text-hint` `#6f6e7d` | 4.05 on `#f4f4f8` |
 | notification "review" yellow (text and fills) | `#e39a00` | `#956500` | 4.52 on `#fcf1d8` |
 | calendar weekday and date-box labels | `#b5b6b7` | `--ui-color-text-hint` | 5.00 |
 
