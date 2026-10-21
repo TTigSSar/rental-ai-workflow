@@ -27,7 +27,7 @@ Date: 2026-07-07 | Status: accepted
 2. **Derived, not stored.** `isClosed` = `booking.Status ∈ ReadOnlyChat` **and not** the legacy exception (point 4). It is computed on every read and every send. Nothing is written at the transition, so a missed event cannot leave a chat open (the M-012 class is gone). The review-based close goes away: `ReviewsService.CloseConversationIfBothReviewsInAsync`, the guard in `BookingsService.CompleteAsync` and `ChatService.TryLazyCloseAsync`. `Conversation.ClosedAt` is no longer written for booking chats. Whether the column is dropped or kept is RL-41's call. Moderation threads are unaffected: they have no booking and never close.
 3. **Rejected sends.** A participant's send (text or image) to a read-only chat returns `409 chat.conversation_closed`, the existing code (ADR-045). `MarkRead` stays allowed.
 4. **Legacy exception (M-H, migration §3.2).** Chats of migrated Rejected, Cancelled and Expired bookings (`Booking.LegacyRule` ∈ MG-05, MG-06, MG-07; ADR-046) stay open, as they are today. This applies **only to migrated rows**. Every new T2/T3 and every migrated T1 (MG-04, M-A), plus T2 from MG-02 and M-E, is read-only.
-5. **State tokens replace the pill vocabulary.** There is one token per state: `requested` S1 · `approved` S2 · `handover_claimed` S3 · `handover_unconfirmed` S4 · `active` / `return_due` S5 · `return_claimed` S6 · `return_unconfirmed` S7 · `closing` S8 · `disputed` S9 · `completed` T1 · `not_happened` T2 · `closed_by_support` T3 · `moderation` (unchanged). The `closed` override token is **retired**. Read-only travels as the separate `isClosed` flag, on the details response and the inbox preview, so a migrated T2 with an open chat reads `not_happened` + `isClosed: false`. The `return_due` rule moves to the Yerevan calendar (RL-06). The old fallback of terminal statuses to `requested` disappears.
+5. **State tokens replace the pill vocabulary.** There is one token per state: `requested` S1 · `approved` S2 · `handover_claimed` S3 · `active` / `return_due` S5 · `return_claimed` S6 · `return_unconfirmed` S7 · `closing` S8 · `disputed` S9 · `completed` T1 · `not_happened` T2 · `closed_by_support` T3 · `moderation` (unchanged). The `closed` override token is **retired**. Read-only travels as the separate `isClosed` flag, on the details response and the inbox preview, so a migrated T2 with an open chat reads `not_happened` + `isClosed: false`. The `return_due` rule moves to the Yerevan calendar (RL-06). The old fallback of terminal statuses to `requested` disappears.
 6. **Support access is a separate check, not participation (§9.2).** An Admin may read a booking chat and post as "Поддержка DoRent" only while **at least one support case on that booking is open**. This is checked on every request, so closing the case cuts access at once and reopening it (Q-10) restores it. Support never becomes a `ConversationParticipant`. Support may post even when the chat is read-only for the parties. Reopening a case never gives the parties sending back. Every support opening of a chat writes an audit entry: who, when, which case, no message text. While a case is open, the parties see "Поддержка видит этот чат" (AC-11). The case entity and its endpoints are their own ADR.
 
 **Rejected (2026-10-19):**
@@ -1321,7 +1321,7 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
    | 0 | `Pending` | S1 | |
    | 1 | `Approved` | S2 | |
    | 8 | `HandoverClaimed` | S3 | new |
-   | 9 | `HandoverUnconfirmed` | S4 | new |
+   | 9 | ~~`HandoverUnconfirmed`~~ | ~~S4~~ | not introduced; 9 reserved, never reused (amendment 2026-10-20) |
    | 7 | `Active` | S5 | now means "the renter confirmed receipt", or a legacy owner mark (M-C) |
    | 10 | `ReturnClaimed` | S6 | new |
    | 11 | `ReturnUnconfirmed` | S7 | new; legacy value 6 rows land here (M-B) |
@@ -1332,7 +1332,7 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
    | 15 | `ClosedBySupport` | T3 | new |
    | 2, 3, 4, 6 | — | — | **retired, never reused** (2/3/4 after the migration, see 2) |
 
-2. **T2 is one value plus a reason.** `NotHappened` (14) carries `Booking.OutcomeReason`, a string code that is non-null exactly when the status is 14: `owner_rejected` (TR-03), `withdrawn` (TR-04), `no_response` (TR-05), `cancelled_by_renter` (TR-08), `cancelled_by_owner` (TR-09), `no_handover` (TR-10), `handover_unconfirmed` (TR-15), `request_inactive` (TR-33, block in S1) and `agreed_no_rental` (TR-25/TR-34 with outcome T2). The migration moves rows with values 2/3/4 to 14 with a reason (MG-05 → `owner_rejected`, MG-06 → `cancelled_by_renter`, MG-02/MG-07 → `no_response`). The rejection reason text keeps living in `RejectionReason`.
+2. **T2 is one value plus a reason.** `NotHappened` (14) carries `Booking.OutcomeReason`, a string code that is non-null exactly when the status is 14: `owner_rejected` (TR-03), `withdrawn` (TR-04), `no_response` (TR-05), `cancelled_by_renter` (TR-08), `cancelled_by_owner` (TR-09), `no_handover` (TR-10), `request_inactive` (TR-33, block in S1) and `agreed_no_rental` (TR-25/TR-34 with outcome T2). The migration moves rows with values 2/3/4 to 14 with a reason (MG-05 → `owner_rejected`, MG-06 → `cancelled_by_renter`, MG-02/MG-07 → `no_response`). The rejection reason text keeps living in `RejectionReason`.
 
 3. **State sets live in one Domain class, `BookingStates`.** No consumer may list enum values itself:
    - `Live` = S1…S9. Used for in-flight bookings, which block a home-point change (`HomePointStore`).
@@ -1370,18 +1370,18 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
    | `approve` (exists) | owner | TR-02 |
    | `reject` (exists) | owner | TR-03 |
    | `cancel` (exists, widened) | renter in S1 → TR-04 (reason optional); renter in S2 → TR-08; owner in S2 → TR-09 (reason required) | TR-04, TR-08, TR-09 |
-   | `receipt-confirm` (new) | renter | TR-06, TR-11, TR-14 |
+   | `receipt-confirm` (new) | renter | TR-06, TR-11 |
    | `handover-claim` (new) | owner | TR-07 |
    | `not-received` (new) | renter in S3 / owner in S6 | TR-12, TR-21 |
    | `return-claim` (new) | renter | TR-16 |
-   | `close` (new) | owner, S2…S7; sets `ReceiptUnconfirmed` from S2/S3/S4 | TR-17, TR-18 |
-   | `problem` (new, body `{ type }`) | either party in S4…S7, renter in S8 | TR-22, TR-24 |
+   | `close` (new) | owner, S2…S7; sets `ReceiptUnconfirmed` from S2/S3 | TR-17, TR-18 |
+   | `problem` (new, body `{ type }`) | either party in S5…S7, renter in S8 | TR-22, TR-24 |
    | `all-ok` (new) | renter in S8 | TR-23 (explicit) |
    | `reviews-open` (new; consent details in RL-09) | renter in T1 | TR-32 |
    | `date-proposals` + `…/{pid}/accept`, `reject`, `withdraw` (new) | either party | TR-27…TR-30 |
 
    - `activate` and `complete` are **removed**, not given a new meaning. Their error codes `booking.not_activatable` and `booking.not_completable` retire with them.
-   - System transitions have no route: TR-05, TR-10, TR-13, TR-15, TR-19, TR-20, TR-23 by timeout, TR-26, TR-31 and TR-33.
+   - System transitions have no route: TR-05, TR-10, TR-13, TR-19, TR-20, TR-23 by timeout, TR-26, TR-31 and TR-33.
    - Support transitions go through the support-case endpoints: TR-25 and TR-34 (case ADR).
    - `BookingDetailResponse`, `BookingResponse` and `BookingRequestResponse` gain:
      - `outcomeReason?`;
@@ -1399,11 +1399,12 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
    | 01 | insert, S1, `DueAt = ExpiresAt` | POST /bookings |
    | 02 | S1→S2, `ApprovedAt`, `DueAt` = end of the return date (TM-04) | approve |
    | 03, 04, 05, 08, 09, 33 | →T2 + reason | reject / cancel / system |
-   | 06, 11, 14 | →S5, `ActiveAt`, `DueAt` = return date + 7 (TM-05) | receipt-confirm |
+   | 06, 11 | →S5, `ActiveAt`, `DueAt` = return date + 7 (TM-05) | receipt-confirm |
    | 07 | S2→S3, `DueAt` = +24 h (TM-02) | handover-claim |
-   | 10, 15 | →T2 `no_handover` / `handover_unconfirmed` | system |
+   | 10 | →T2 `no_handover` | system |
+   | 14, 15 | retired by the amendment below | — |
    | 12, 21, 22, 24, 26 | →S9, `DueAt = null`, case created in the same transaction | not-received / problem / system |
-   | 13 | S3→S4, `DueAt` = return date + 7 (TM-03) | system |
+   | 13 | S3→S5 by 24 h silence, `ActiveAt`, `DueAt` = return date + 7 (TM-05) | system |
    | 16 | S5→S6, `DueAt` = +48 h (TM-06) | return-claim |
    | 17, 18 | →S8, `DueAt` = +24 h (TM-07); 18 sets `ReceiptUnconfirmed` | close |
    | 19, 20 | →S7, `DueAt = null` | system |
@@ -1438,7 +1439,7 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
 - **Why.** It is simpler: one less state and one less timer, and the rental does not stall when the renter forgets to press the button.
 - **Risk accepted.** A false "I handed it over" plus a missed notification auto-confirms receipt. The renter still has "There is a problem" (TR-22) in S5.
 - **Supersedes:** spec §3 principle 1 ("silence confirms nothing") for the handover. The O-9 return exception now has a handover twin.
-- **Follow-up:** spec revision 10 and the S4 mentions in ADR-001 (tokens), ADR-048 (timers) and this ADR's tables (Trello, Rental Lifecycle list). Implemented with the ADR-046 slice, not with stage 1 of the chat card (RC-1…RC-4).
+- **Follow-up (done 2026-10-21, RL-docs):** spec revision 10 and the S4 mentions in ADR-001 (tokens), ADR-048 (timers) and this ADR's tables. Implemented with the ADR-046 slice, not with stage 1 of the chat card (RC-1…RC-4).
 
 **Note (2026-10-20, chat card stage 1, RC-1…RC-4):**
 - `turn` (`owner` | `renter` | `none`) is also returned on the chat conversation details, together with `viewerRole`.
@@ -1508,7 +1509,7 @@ Date: 2026-10-19 | Status: accepted — every choice below picked by Tigran, 202
 1. **Calendar.** Every calendar rule (today, end of day, 09:00/18:00, quiet hours 22:00–09:00) uses Asia/Yerevan as a **fixed UTC+4**, with one helper per side (`YerevanCalendar` in Domain, a twin util in the UI). Storage stays UTC.
 2. **Clock.** Booking, chat and notification code reads time from an injected `TimeProvider`, already used by auth. There is no direct `DateTime.UtcNow`, so tests control time.
 3. **Scheduler: Hangfire** on our SQL Server.
-   - Each timer (TM-01…TM-08, and the urgent "N hours before" reminders) is a job enqueued in the same transaction that enters the state. It runs "TR-x if the booking is still in state Y with the same `DueAt`" (ADR-046).
+   - Each timer (TM-01…TM-08 except TM-03, retired by the ADR-046 amendment of 2026-10-20; TM-02 now ends in S5), and the urgent "N hours before" reminders) is a job enqueued in the same transaction that enters the state. It runs "TR-x if the booking is still in state Y with the same `DueAt`" (ADR-046).
    - A stale job is a harmless no-op, so cancelling one is only best effort.
    - The 09:00/18:00 reminders are two recurring jobs on Yerevan time.
    - An hourly recurring catch-up handles bookings whose `DueAt` passed without a job (the M-012 class).
