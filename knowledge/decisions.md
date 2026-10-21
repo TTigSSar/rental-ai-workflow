@@ -1560,3 +1560,15 @@ Date: 2026-10-20 | Status: accepted (Tigran, 2026-10-20, RC-4 review) | Area: ch
 **Decision:** a system line is rendered client-side from its `systemKind` through `chat.system.*` keys, both in the thread and in the inbox preview. The inbox item tells the UI that its last message is a system line and of which kind. The stored body is a fixed English constant: a fallback for unknown kinds and logs. It never carries user data such as a rejection reason or code. The reason travels only in `rejectionReason` on the details response.
 **Why:** a system line has two readers who may use different languages, so one server-rendered string cannot fit both. The thread already localizes by `systemKind`. The inbox snippet showed English for ru/hy readers, and a raw reason code (`dates_unavailable`), which ADR-045 forbids for error prose.
 **Rejected:** (a) server-rendered per-recipient copy, as notifications do (ADR-025): it needs two stored snippets per line and a migration. (b) Only stripping the reason code: the snippet stays English for ru/hy.
+
+## ADR-052: Dates are formatted in the UI language through one shared pipe/helper backed by Angular locale data for en, ru and hy
+Date: 2026-10-21 | Status: accepted (Tigran, 2026-10-21) | Area: frontend (every date display)
+**Decision:**
+- Every date and time in the UI is formatted by one shared pipe and helper. It takes the **current UI language** (ADR-038), not the browser language and not a hard-coded en-US.
+- The app registers Angular locale data for `ru` and `hy`; `en` is built in. These supply month names, the genitive form ("21 октября", "հոկտեմբերի 21") and day/month order.
+- Times are shown in fixed Yerevan time, UTC+4 (ADR-048).
+- Format patterns stay as they are today. Only the language changes.
+- Switching the language re-renders dates without a reload.
+- Direct `DatePipe`, `formatDate` or `toLocale*String` in features is not allowed.
+**Why:** today two mechanisms disagree. `| date` always formats in en-US ("21 Oct" in ru/hy). `toLocaleDateString(undefined)` follows the browser language, not the UI language. With one path there is only one place to get right.
+**Rejected:** (b) bare `Intl.DateTimeFormat`: the output varies by browser, and the +04:00 offset must be done by hand (ADR-048 rejected relying on browser time zones). (c) Our own i18n month keys: we would maintain genitive forms and word order per language by hand.
