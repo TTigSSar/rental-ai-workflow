@@ -1579,3 +1579,4 @@ Date: 2026-10-21 | Status: accepted (Tigran, 2026-10-21) | Area: frontend (every
 **Amended 2026-10-21 (Tigran):**
 - Booking date ranges in lists and cards (my bookings, request cards) use day-before-month: "17 окт. – 24 окт. 2026" / "17 Oct – 24 Oct, 2026". The English-only "MMM d" order is gone there.
 - Chat day dividers ("Today", "Yesterday", the day) group messages by the viewer's device day. This is intended, not a gap: the dividers follow the reader's own calendar.
+- **Known exception (Tigran, 2026-10-21):** the chat "request" system line keeps the server-built ISO range (`bookingDates`, "2026-10-05 – 2026-10-07"). It was deliberately not converted, so do not flag it as an ADR-052 gap.
