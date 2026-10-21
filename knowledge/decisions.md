@@ -1572,3 +1572,6 @@ Date: 2026-10-21 | Status: accepted (Tigran, 2026-10-21) | Area: frontend (every
 - Direct `DatePipe`, `formatDate` or `toLocale*String` in features is not allowed.
 **Why:** today two mechanisms disagree. `| date` always formats in en-US ("21 Oct" in ru/hy). `toLocaleDateString(undefined)` follows the browser language, not the UI language. With one path there is only one place to get right.
 **Rejected:** (b) bare `Intl.DateTimeFormat`: the output varies by browser, and the +04:00 offset must be done by hand (ADR-048 rejected relying on browser time zones). (c) Our own i18n month keys: we would maintain genitive forms and word order per language by hand.
+**Amended 2026-10-21 (Tigran):**
+- Booking date ranges in lists and cards (my bookings, request cards) use day-before-month: "17 окт. – 24 окт. 2026" / "17 Oct – 24 Oct, 2026". The English-only "MMM d" order is gone there.
+- Chat day dividers ("Today", "Yesterday", the day) group messages by the viewer's device day. This is intended, not a gap: the dividers follow the reader's own calendar.
