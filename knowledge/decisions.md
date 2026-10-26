@@ -488,6 +488,9 @@ Date: 2026-10-06 | Status: accepted | Decided by: Tigran | Area: API/contract, i
 
 **Amended 2026-10-19 — every notification kind, not only Pickup (spec v1.1 D-4, §13, AC-09; RL-07).** Status: accepted (Tigran, 2026-10-19). Every rental notification (N-01…N-19) and every other kind is rendered by `NotificationCopy` in the recipient's `PreferredLanguage` (en/hy/ru, English fallback) when its `Notification` row is created. For a notification held in the outbox during quiet hours (ADR-048), that means at delivery, in the language the user has at that moment. Email uses the same language. Rows already stored are not rewritten (a notification is a record of a moment). "Revisit when all ten kinds are converted together" is answered: they stay stored text, not keys.
 
+**Amended 2026-10-26 — moderation notes in chat follow the same rule (Tigran, 2026-10-26).** The `ModerationNote` messages (reject, recategorise, suspend) have their body and their `reason` rendered server-side when they are emitted, in the member's `PreferredLanguage` (en/hy/ru, English fallback), and stored as text. The admin's free-text note and suspend reason stay as written. Old notes are not rewritten. The moderator sees the note in the member's language.
+**Rejected:** storing a `reasonCode` on `ChatMessage` and translating it in the UI (ADR-045 style). That needs a migration and a contract change, and it would render the chat differently from notifications.
+
 ---
 
 ## ADR-026: The agent system — a fixed roster, least privilege enforced by the harness, one report contract, and git delivery split between agent and orchestrator
