@@ -600,3 +600,10 @@ Date: 2026-10-21 | Area: backend tests (real-SQL-Server concurrency classes, ADR
 **Cause:** the test fired 18 sessions at once (6 users × 3 racers). Each lock-blocked session pins a SQL Server worker, and a developer instance is slow to add more. The lock holder's next batch waited PENDING in THREADPOOL for the whole 30 s timeout. There was no lock cycle and no error 1205, so product code was not at fault. Four SQL Server race classes also ran in parallel against the same instance. Measured: 2–3 users 0/10 failures, 4 users 1/10, 6 users about 1 in 2.
 **Fix:** rental-api 78d6c85 runs 2 users × 30 rounds (the same 60 user-races) and puts the four classes in one non-parallel xUnit collection, `SqlServerConcurrencyCollection`. Verified: full suite 2× green (1353, 0 skipped), class alone 40/40.
 **Rule:** a timeout in a real-DB race test is not a deadlock until you see 1205 or a lock cycle. Bound the number of simultaneous blocked sessions per test, and serialize the classes that race the same instance. Never fix it with retries or a longer timeout.
+
+## M-075: A spec with a hard-coded booking date went red on its own when that date passed
+Date: 2026-10-26 | Area: frontend unit tests (date-relative UI rules)
+**Symptom:** `rental-card.component.spec.ts` > "approved: confirming dispatches cancelBooking" failed with `Cannot read properties of undefined (reading 'click')`. No code had changed; it failed on the baseline too. It was first written off as "pre-existing" during card 217.
+**Cause:** the fixture's `startDate` was `'2026-10-25'`. The component offers approved-cancel only while `startDate > today` (`canCancelApproved`), so on 2026-10-26 the menu item disappeared. The shared `conversation()` fixture in that spec still hard-codes October 2026 dates.
+**Fix:** Rental-Ui 0b78a93 gives that case a far-future range (2999-01-01…05).
+**Rule:** a fixture that feeds a rule comparing against "today" builds its dates relative to the current date (or pins the clock with fake timers). Never hard-code a calendar date there. A red test on an untouched baseline is a finding to diagnose, not noise to note and skip.
