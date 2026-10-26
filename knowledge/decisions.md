@@ -27,7 +27,7 @@ Date: 2026-07-07 | Status: accepted
 2. **Derived, not stored.** `isClosed` = `booking.Status ∈ ReadOnlyChat` **and not** the legacy exception (point 4). It is computed on every read and every send. Nothing is written at the transition, so a missed event cannot leave a chat open (the M-012 class is gone). The review-based close goes away: `ReviewsService.CloseConversationIfBothReviewsInAsync`, the guard in `BookingsService.CompleteAsync` and `ChatService.TryLazyCloseAsync`. `Conversation.ClosedAt` is no longer written for booking chats. Whether the column is dropped or kept is RL-41's call. Moderation threads are unaffected: they have no booking and never close.
 3. **Rejected sends.** A participant's send (text or image) to a read-only chat returns `409 chat.conversation_closed`, the existing code (ADR-045). `MarkRead` stays allowed.
 4. **Legacy exception (M-H, migration §3.2).** Chats of migrated Rejected, Cancelled and Expired bookings (`Booking.LegacyRule` ∈ MG-05, MG-06, MG-07; ADR-046) stay open, as they are today. This applies **only to migrated rows**. Every new T2/T3 and every migrated T1 (MG-04, M-A), plus T2 from MG-02 and M-E, is read-only.
-5. **State tokens replace the pill vocabulary.** There is one token per state: `requested` S1 · `approved` S2 · `handover_claimed` S3 · `handover_unconfirmed` S4 · `active` / `return_due` S5 · `return_claimed` S6 · `return_unconfirmed` S7 · `closing` S8 · `disputed` S9 · `completed` T1 · `not_happened` T2 · `closed_by_support` T3 · `moderation` (unchanged). The `closed` override token is **retired**. Read-only travels as the separate `isClosed` flag, on the details response and the inbox preview, so a migrated T2 with an open chat reads `not_happened` + `isClosed: false`. The `return_due` rule moves to the Yerevan calendar (RL-06). The old fallback of terminal statuses to `requested` disappears.
+5. **State tokens replace the pill vocabulary.** There is one token per state: `requested` S1 · `approved` S2 · `handover_claimed` S3 · `active` / `return_due` S5 · `return_claimed` S6 · `return_unconfirmed` S7 · `closing` S8 · `disputed` S9 · `completed` T1 · `not_happened` T2 · `closed_by_support` T3 · `moderation` (unchanged). The `closed` override token is **retired**. Read-only travels as the separate `isClosed` flag, on the details response and the inbox preview, so a migrated T2 with an open chat reads `not_happened` + `isClosed: false`. The `return_due` rule moves to the Yerevan calendar (RL-06). The old fallback of terminal statuses to `requested` disappears.
 6. **Support access is a separate check, not participation (§9.2).** An Admin may read a booking chat and post as "Поддержка DoRent" only while **at least one support case on that booking is open**. This is checked on every request, so closing the case cuts access at once and reopening it (Q-10) restores it. Support never becomes a `ConversationParticipant`. Support may post even when the chat is read-only for the parties. Reopening a case never gives the parties sending back. Every support opening of a chat writes an audit entry: who, when, which case, no message text. While a case is open, the parties see "Поддержка видит этот чат" (AC-11). The case entity and its endpoints are their own ADR.
 
 **Rejected (2026-10-19):**
@@ -39,6 +39,16 @@ Date: 2026-07-07 | Status: accepted
 
 **Amended 2026-10-20 — stage-1 rental card, before ADR-046 lands (Tigran, 2026-10-20, RC-1/RC-2).** On the current backend, Rejected, Cancelled and Expired map to the T2 token `not_happened` (point 5) instead of falling back to `requested`. This applies to `status` and `bookingStatus` on the details response and to the inbox preview. The reason travels in `rejectionReason`. These chats stay open (point 4). Read-only is applied to `Completed` only until ADR-046 lands.
 **Rejected:** separate `rejected` / `cancelled` / `expired` tokens — vocabulary point 5 does not have, and ADR-046 collapses them into T2 anyway.
+**Amended 2026-10-20 — a rental status change is an unread message (Tigran, 2026-10-20, RC-5).**
+- **Every rental status change posts a chat system line.** That line counts as unread, so it raises the chat badge.
+- **It counts for the other party, not for the person who acted.** A system transition (a timer) counts for both parties.
+- **How:** a nullable `ChatMessage.ActorUserId`, set on system lines caused by a user. The unread queries exclude `ActorUserId == viewer` as well as `SenderId == viewer`.
+- **The global chat badge** refreshes as soon as a realtime message arrives, not only on the 60 s poll.
+- **Rejected:** counting the line for both parties. The person who pressed "Accept" would see a "1" for their own action.
+- **Implemented 2026-10-20 (RC-5):**
+  - Migration `ChatMessageActorUserId` adds a nullable `ActorUserId` with an FK to Users (Restrict); Tigran approved it.
+  - Expiry now posts a line too. It is `ChatSystemKind.Expired = 7` with the token `expired`, written with a null actor, so it is unread for both parties (Tigran, 2026-10-20).
+  - The 1-minute sweep announces only the bookings it actually moved to Expired.
 
 ## ADR-002: Chat image attachments are served as unauthenticated capability URLs
 Date: 2026-07-11 | Status: accepted (**deliberate trade-off, not an oversight**)
@@ -1041,6 +1051,10 @@ Date: 2026-10-13 | Area: frontend / design tokens, accessibility | Status: decid
 | blue (`--dash-blue`, message pill) | `#4a5fe3` | `#465ce2` | 4.54 on `#e8eaff` |
 | amber (`--dash-warn`, `--chat-warn`, `--note-warn`) | `#d97706` | `#a75c05` | 4.52 on `#fff1dc` |
 | danger (`--ui-color-danger`) | `#d9342b` | `#cc2d25` | 4.63 on `#fdecea` |
+| amber text ink, now one token `--ui-color-amber-ink` (`--dash-warn-ink`, `--chat-warn`, `--note-warn`, notification pickup/return) — Rental-Ui `14de17a`, `ef6d3b7`, 2026-10-21 | `#a75c05` | `#a45a05` | 4.58 on `#ffeedc` (active inbox row) |
+| chat inbox neutral status text (closed, not_happened, moderation) | `#9a99a3` | `--ui-color-text-secondary` `#6b6a75` | 4.69 on `#ffeedc` |
+| chat inbox active (booked) status text; the dot stays `#ff6008` | `--ui-color-primary` `#ff6008` | `--ui-color-primary-strong-hover` `#a83c00` | 5.59 on `#ffeedc` |
+| chat `closed` system icon (non-text) | `#9a99a3` | `--ui-color-text-hint` `#6f6e7d` | 4.05 on `#f4f4f8` |
 | notification "review" yellow (text and fills) | `#e39a00` | `#956500` | 4.52 on `#fcf1d8` |
 | calendar weekday and date-box labels | `#b5b6b7` | `--ui-color-text-hint` | 5.00 |
 
@@ -1311,7 +1325,7 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
    | 0 | `Pending` | S1 | |
    | 1 | `Approved` | S2 | |
    | 8 | `HandoverClaimed` | S3 | new |
-   | 9 | `HandoverUnconfirmed` | S4 | new |
+   | 9 | ~~`HandoverUnconfirmed`~~ | ~~S4~~ | not introduced; 9 reserved, never reused (amendment 2026-10-20) |
    | 7 | `Active` | S5 | now means "the renter confirmed receipt", or a legacy owner mark (M-C) |
    | 10 | `ReturnClaimed` | S6 | new |
    | 11 | `ReturnUnconfirmed` | S7 | new; legacy value 6 rows land here (M-B) |
@@ -1322,7 +1336,7 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
    | 15 | `ClosedBySupport` | T3 | new |
    | 2, 3, 4, 6 | — | — | **retired, never reused** (2/3/4 after the migration, see 2) |
 
-2. **T2 is one value plus a reason.** `NotHappened` (14) carries `Booking.OutcomeReason`, a string code that is non-null exactly when the status is 14: `owner_rejected` (TR-03), `withdrawn` (TR-04), `no_response` (TR-05), `cancelled_by_renter` (TR-08), `cancelled_by_owner` (TR-09), `no_handover` (TR-10), `handover_unconfirmed` (TR-15), `request_inactive` (TR-33, block in S1) and `agreed_no_rental` (TR-25/TR-34 with outcome T2). The migration moves rows with values 2/3/4 to 14 with a reason (MG-05 → `owner_rejected`, MG-06 → `cancelled_by_renter`, MG-02/MG-07 → `no_response`). The rejection reason text keeps living in `RejectionReason`.
+2. **T2 is one value plus a reason.** `NotHappened` (14) carries `Booking.OutcomeReason`, a string code that is non-null exactly when the status is 14: `owner_rejected` (TR-03), `withdrawn` (TR-04), `no_response` (TR-05), `cancelled_by_renter` (TR-08), `cancelled_by_owner` (TR-09), `no_handover` (TR-10), `request_inactive` (TR-33, block in S1) and `agreed_no_rental` (TR-25/TR-34 with outcome T2). The migration moves rows with values 2/3/4 to 14 with a reason (MG-05 → `owner_rejected`, MG-06 → `cancelled_by_renter`, MG-02/MG-07 → `no_response`). The rejection reason text keeps living in `RejectionReason`.
 
 3. **State sets live in one Domain class, `BookingStates`.** No consumer may list enum values itself:
    - `Live` = S1…S9. Used for in-flight bookings, which block a home-point change (`HomePointStore`).
@@ -1360,18 +1374,18 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
    | `approve` (exists) | owner | TR-02 |
    | `reject` (exists) | owner | TR-03 |
    | `cancel` (exists, widened) | renter in S1 → TR-04 (reason optional); renter in S2 → TR-08; owner in S2 → TR-09 (reason required) | TR-04, TR-08, TR-09 |
-   | `receipt-confirm` (new) | renter | TR-06, TR-11, TR-14 |
+   | `receipt-confirm` (new) | renter | TR-06, TR-11 |
    | `handover-claim` (new) | owner | TR-07 |
    | `not-received` (new) | renter in S3 / owner in S6 | TR-12, TR-21 |
    | `return-claim` (new) | renter | TR-16 |
-   | `close` (new) | owner, S2…S7; sets `ReceiptUnconfirmed` from S2/S3/S4 | TR-17, TR-18 |
-   | `problem` (new, body `{ type }`) | either party in S4…S7, renter in S8 | TR-22, TR-24 |
+   | `close` (new) | owner, S2…S7; sets `ReceiptUnconfirmed` from S2/S3 | TR-17, TR-18 |
+   | `problem` (new, body `{ type }`) | either party in S5…S7, renter in S8 | TR-22, TR-24 |
    | `all-ok` (new) | renter in S8 | TR-23 (explicit) |
    | `reviews-open` (new; consent details in RL-09) | renter in T1 | TR-32 |
    | `date-proposals` + `…/{pid}/accept`, `reject`, `withdraw` (new) | either party | TR-27…TR-30 |
 
    - `activate` and `complete` are **removed**, not given a new meaning. Their error codes `booking.not_activatable` and `booking.not_completable` retire with them.
-   - System transitions have no route: TR-05, TR-10, TR-13, TR-15, TR-19, TR-20, TR-23 by timeout, TR-26, TR-31 and TR-33.
+   - System transitions have no route: TR-05, TR-10, TR-13, TR-19, TR-20, TR-23 by timeout, TR-26, TR-31 and TR-33.
    - Support transitions go through the support-case endpoints: TR-25 and TR-34 (case ADR).
    - `BookingDetailResponse`, `BookingResponse` and `BookingRequestResponse` gain:
      - `outcomeReason?`;
@@ -1389,11 +1403,12 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
    | 01 | insert, S1, `DueAt = ExpiresAt` | POST /bookings |
    | 02 | S1→S2, `ApprovedAt`, `DueAt` = end of the return date (TM-04) | approve |
    | 03, 04, 05, 08, 09, 33 | →T2 + reason | reject / cancel / system |
-   | 06, 11, 14 | →S5, `ActiveAt`, `DueAt` = return date + 7 (TM-05) | receipt-confirm |
+   | 06, 11 | →S5, `ActiveAt`, `DueAt` = return date + 7 (TM-05) | receipt-confirm |
    | 07 | S2→S3, `DueAt` = +24 h (TM-02) | handover-claim |
-   | 10, 15 | →T2 `no_handover` / `handover_unconfirmed` | system |
+   | 10 | →T2 `no_handover` | system |
+   | 14, 15 | retired by the amendment below | — |
    | 12, 21, 22, 24, 26 | →S9, `DueAt = null`, case created in the same transaction | not-received / problem / system |
-   | 13 | S3→S4, `DueAt` = return date + 7 (TM-03) | system |
+   | 13 | S3→S5 by 24 h silence, `ActiveAt`, `DueAt` = return date + 7 (TM-05) | system |
    | 16 | S5→S6, `DueAt` = +48 h (TM-06) | return-claim |
    | 17, 18 | →S8, `DueAt` = +24 h (TM-07); 18 sets `ReceiptUnconfirmed` | close |
    | 19, 20 | →S7, `DueAt = null` | system |
@@ -1420,6 +1435,21 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four 
 - RL-14: the schema and EF migration (`OutcomeReason`, `ReceiptUnconfirmed`, `StatusChangedAt`, `DueAt` + index, `LegacyRule`, the `BookingEvents` table). The migration needs human review.
 - contract-guardian: the DTO fields and routes in point 8.
 - RL-03 (ADR-001: chat read-only, the pill vocabulary per state), RL-04 (price snapshot), RL-06 (scheduler over `DueAt`, notification dedupe by event id), RL-09 (consent marks), the support-case ADR and the date-proposal entity.
+
+**Amendment (Tigran, 2026-10-20): silence after "I handed it over" means received.**
+- **The rule.** In S3 the renter has 24 h (TM-02) to confirm receipt (TR-11) or say "Not received" (TR-12 → S9, unchanged). If neither happens, the system moves the rental **S3 → S5** and sets `ActiveAt` and `DueAt` = return date + 7 (TM-05).
+- **What the renter sees in S3:** "{owner} says the toy was handed over. Confirm you received it. If you don't confirm or report a problem within 24 h, receipt will be confirmed automatically."
+- **What disappears.** S4 `HandoverUnconfirmed` (value 9) is not introduced; 9 is reserved and never reused. TR-13 (S3→S4), TR-14, TR-15 (→T2 `handover_unconfirmed`), TM-03 and the `handover_unconfirmed` reason and chat token go too. `problem` (TR-22) is available from S5…S7 plus the S8 rule as before.
+- **Why.** It is simpler: one less state and one less timer, and the rental does not stall when the renter forgets to press the button.
+- **Risk accepted.** A false "I handed it over" plus a missed notification auto-confirms receipt. The renter still has "There is a problem" (TR-22) in S5.
+- **Supersedes:** spec §3 principle 1 ("silence confirms nothing") for the handover. The O-9 return exception now has a handover twin.
+- **Follow-up (done 2026-10-21, RL-docs):** spec revision 10 and the S4 mentions in ADR-001 (tokens), ADR-048 (timers) and this ADR's tables. Implemented with the ADR-046 slice, not with stage 1 of the chat card (RC-1…RC-4).
+
+**Note (2026-10-20, chat card stage 1, RC-1…RC-4):**
+- `turn` (`owner` | `renter` | `none`) is also returned on the chat conversation details, together with `viewerRole`.
+- Until this ADR lands, an interim helper computes it: `ChatTokens.TurnToken`, where Pending and Approved give `owner` and everything else gives `none`. That helper is the single place to replace with point 8's computation.
+- The chat card's orange bar and its "Your turn / Nothing needed from you" badge follow `turn` only (Tigran, 2026-10-20).
+- Its buttons are still status-derived until `availableActions` exists.
 
 ## ADR-047: Rental price — a listing has a `Price` per `PriceUnit`; the total is "every started period" (B-2); a booking snapshots price and unit at creation and is never repriced; "hourly" is retired
 Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — forks and text, RL-04) | Area: backend (domain, listings, bookings, seed) + frontend (listing form, cards, booking page, calendar preview) | Spec: Rental Spec v1.1 §11 (B-2), §6 item 5 (Q-8, Q-19); migration §3.1–§3.2 (M-J, M-K, Q-15)
@@ -1483,7 +1513,7 @@ Date: 2026-10-19 | Status: accepted — every choice below picked by Tigran, 202
 1. **Calendar.** Every calendar rule (today, end of day, 09:00/18:00, quiet hours 22:00–09:00) uses Asia/Yerevan as a **fixed UTC+4**, with one helper per side (`YerevanCalendar` in Domain, a twin util in the UI). Storage stays UTC.
 2. **Clock.** Booking, chat and notification code reads time from an injected `TimeProvider`, already used by auth. There is no direct `DateTime.UtcNow`, so tests control time.
 3. **Scheduler: Hangfire** on our SQL Server.
-   - Each timer (TM-01…TM-08, and the urgent "N hours before" reminders) is a job enqueued in the same transaction that enters the state. It runs "TR-x if the booking is still in state Y with the same `DueAt`" (ADR-046).
+   - Each timer (TM-01…TM-08 except TM-03, retired by the ADR-046 amendment of 2026-10-20; TM-02 now ends in S5), and the urgent "N hours before" reminders) is a job enqueued in the same transaction that enters the state. It runs "TR-x if the booking is still in state Y with the same `DueAt`" (ADR-046).
    - A stale job is a harmless no-op, so cancelling one is only best effort.
    - The 09:00/18:00 reminders are two recurring jobs on Yerevan time.
    - An hourly recurring catch-up handles bookings whose `DueAt` passed without a job (the M-012 class).
@@ -1528,3 +1558,25 @@ Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-09) | Area: backend 
 5. **Migration (M-I).** Legacy owner completion (MG-04) sets the owner's mark at `CompletedAt`, and the renter can then consent via TR-32. M-A rows get no marks. Existing reviews are kept.
 
 **Rejected:** D-6 "closing = consent" (cancelled by B-1); support consenting for a party (Q-16 A); a consent flag derived from booking events at read time (the marks are the queryable fact the review gate needs).
+
+## ADR-051: A chat system line is shown in the reader's language by the UI, from its `systemKind`; the stored body is a fixed English fallback
+Date: 2026-10-20 | Status: accepted (Tigran, 2026-10-20, RC-4 review) | Area: chat (backend emitter, inbox preview, thread)
+**Decision:** a system line is rendered client-side from its `systemKind` through `chat.system.*` keys, both in the thread and in the inbox preview. The inbox item tells the UI that its last message is a system line and of which kind. The stored body is a fixed English constant: a fallback for unknown kinds and logs. It never carries user data such as a rejection reason or code. The reason travels only in `rejectionReason` on the details response.
+**Why:** a system line has two readers who may use different languages, so one server-rendered string cannot fit both. The thread already localizes by `systemKind`. The inbox snippet showed English for ru/hy readers, and a raw reason code (`dates_unavailable`), which ADR-045 forbids for error prose.
+**Rejected:** (a) server-rendered per-recipient copy, as notifications do (ADR-025): it needs two stored snippets per line and a migration. (b) Only stripping the reason code: the snippet stays English for ru/hy.
+
+## ADR-052: Dates are formatted in the UI language through one shared pipe/helper backed by Angular locale data for en, ru and hy
+Date: 2026-10-21 | Status: accepted (Tigran, 2026-10-21) | Area: frontend (every date display)
+**Decision:**
+- Every date and time in the UI is formatted by one shared pipe and helper. It takes the **current UI language** (ADR-038), not the browser language and not a hard-coded en-US.
+- The app registers Angular locale data for `ru` and `hy`; `en` is built in. These supply month names, the genitive form ("21 октября", "հոկտեմբերի 21") and day/month order.
+- Times are shown in fixed Yerevan time, UTC+4 (ADR-048).
+- Format patterns stay as they are today. Only the language changes.
+- Switching the language re-renders dates without a reload.
+- Direct `DatePipe`, `formatDate` or `toLocale*String` in features is not allowed.
+**Why:** today two mechanisms disagree. `| date` always formats in en-US ("21 Oct" in ru/hy). `toLocaleDateString(undefined)` follows the browser language, not the UI language. With one path there is only one place to get right.
+**Rejected:** (b) bare `Intl.DateTimeFormat`: the output varies by browser, and the +04:00 offset must be done by hand (ADR-048 rejected relying on browser time zones). (c) Our own i18n month keys: we would maintain genitive forms and word order per language by hand.
+**Amended 2026-10-21 (Tigran):**
+- Booking date ranges in lists and cards (my bookings, request cards) use day-before-month: "17 окт. – 24 окт. 2026" / "17 Oct – 24 Oct, 2026". The English-only "MMM d" order is gone there.
+- Chat day dividers ("Today", "Yesterday", the day) group messages by the viewer's device day. This is intended, not a gap: the dividers follow the reader's own calendar.
+- **Known exception (Tigran, 2026-10-21):** the chat "request" system line keeps the server-built ISO range (`bookingDates`, "2026-10-05 – 2026-10-07"). It was deliberately not converted, so do not flag it as an ADR-052 gap.
