@@ -19,7 +19,8 @@ A signed-in user describes the toy in their own words in the catalogue search fi
 - **Always enforced by the system:** Approved listings only, non-blocked owners only.
 - **Hard (never relaxed automatically):** child age, an explicit budget ("up to 3000"), and anything the user marks as "only / strictly / must".
 - **Soft:** purpose ("educational", "outdoor"), district, "affordable", and a **named item type**. A named item type is expressed by its category plus ranking priority, because the catalogue has no item-type filter.
-- **Auto-widening:** at most 2 visible steps, district → purpose. A widened district shows as one chip, "Kentron + neighbouring districts".
+- **Auto-widening:** at most 2 visible steps, district → purpose. Each added neighbouring district shows as its own chip and is checked in the district filter.
+- **No results:** "Widen the area" drops the district filter (all of Yerevan) as an explicit user action. "Notify me" (subscribe to the current filters) is a separate feature, Trello #220, built after AI search.
 - Removing a filter chip is an explicit user change. Automatic widening never removes hard constraints.
 
 ## Catalogue change
@@ -37,7 +38,7 @@ Rental-date availability. Browser geolocation. Here "near me" means the saved ho
 
 ## Privacy (agreed direction)
 - **Sent to the provider:** the description, the category and district lists, and public candidate fields only. Descriptions are trimmed and marked as data. No user identity and no exact coordinates.
-- **Shown to the user:** a privacy note under the field while typing.
+- **Shown to the user:** a privacy note under the field while typing: "Your description is processed by an AI service."
 - **Retention:** raw query text for 30 days, admin-only, then deleted.
 
 ## Open before ADR (Rule 0)
@@ -45,4 +46,4 @@ Rental-date availability. Browser geolocation. Here "near me" means the saved ho
 - Data boundary, provider retention mode, and logging retention.
 - Daily budget ($), per-user rate limit, exhaustion behaviour.
 - API contract: endpoint(s), auth, error codes.
-- District adjacency table (new data) and the grouped district chip in the filter model.
+- District adjacency table (new data).
