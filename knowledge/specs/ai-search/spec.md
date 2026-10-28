@@ -15,6 +15,8 @@ A signed-in user describes the toy in their own words in the catalogue search fi
 7. Choosing a sort other than "Most relevant first" drops the AI order, the explanation and the divider. List/Map stays available.
 8. Turning the toggle off restores the catalogue as it was before (text query, filters, sort, view, page). The description is kept separately and is never used as a text query.
 
+9. **Guest:** a guest can turn the switch on and type. Submitting opens the existing sign-in dialog. The description is kept on the device only, nothing is sent before sign-in, and the search runs automatically after sign-in (agreed in the round-2 discussion; recorded 2026-10-27).
+
 ## Constraints
 - **Always enforced by the system:** Approved listings only, non-blocked owners only.
 - **Hard (never relaxed automatically):** child age, an explicit budget ("up to 3000"), and anything the user marks as "only / strictly / must".
@@ -30,9 +32,10 @@ Add a **"Child's age" filter** to the normal catalogue (sidebar and mobile sheet
 Rental-date availability. Browser geolocation. Here "near me" means the saved home point, possibly via the existing distance filter (to confirm in design stage 3). Per-card "why it fits" text. A chat UI.
 
 ## Failure behaviour (agreed direction)
-- **Parse fails:** run a plain text search, with a notice.
+- **AI unavailable** (provider down, missing credentials, parse failure, timeout): run a plain text search and show a notice. The AI switch turns off automatically and stays re-enableable. Each search with the switch on checks AI again.
 - **Ranking fails:** use the fallback order.
-- **Daily budget exhausted:** AI is off until Yerevan midnight and the normal search runs.
+- **Daily budget exhausted:** AI is off until Yerevan midnight and the normal search runs. The switch is shown disabled, with the reason, so the client needs the budget state before searching.
+- **"Near me":** with a home point, use the existing distance filter from home at 1 km. Without one, show a "Location isn't considered" note.
 - **Per-user rate limit hit:** "try again in a minute".
 - Raw provider errors are never shown.
 

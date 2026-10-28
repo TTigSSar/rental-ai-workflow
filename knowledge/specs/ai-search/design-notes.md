@@ -21,7 +21,14 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
 11. The privacy note is shortened to "Your description is processed by an AI service." (Tigran's decision).
 12. **Bell** in the no-results state: a round button beside the search circle, with a hint under the title that repeats the bell icon inline. Once subscribed, the bell turns into ✓ with the subscribed text, and tapping ✓ unsubscribes. An existing subscription opens directly in that state. It ships with the subscriptions feature (Trello #220, after AI search) and is hidden until then.
 
+13. Stage 3 approved (Tigran, 2026-10-28), file `AI Search Stage 3.html` (+ `ai4-app.jsx`, `ai4-parts.jsx`):
+    - **Guest:** typing is allowed. Submitting opens the existing sign-in dialog, which is not redrawn. The description is kept. After sign-in the search runs automatically. Closing the dialog runs nothing.
+    - **AI unavailable** (provider down, missing credentials, parse failure, timeout): option **A**, the `ui-msg` info notice in the explanation-line slot. The switch turns **off** automatically but stays **enabled**, so the user can turn it on again. Every search with the switch on checks AI again and switches off again, with the same notice, if AI is still unavailable. Results come from the ordinary catalogue.
+    - **Ranking-only failure:** no notice. "Most relevant first", the explanation and the divider are dropped.
+    - **Daily budget used up:** the switch is shown `aria-disabled`. Desktop shows a tooltip on hover or focus; mobile shows a Note under the field for about 5 s after a tap. The client needs the budget state before searching.
+    - **Rate limit:** a warn notice under the search bar. The description and the cards stay, and no request is sent.
+    - **Dates in the query:** a Note. **"Near me"** with a home point sets the existing distance filter "From your home" to 1 km (the filter default) and shows the chip "Within 1 km of home". Without a home point: the Note "Location isn't considered." plus a "Choose a district" link. At most two Notes are stacked.
+
 ## Open / not accepted
 
-- Stage 3 (guest, AI unavailable, budget exhausted, rate limit, dates and location not considered) is not designed yet.
-- "Near me" through the existing distance filter is to be confirmed in stage 3.
+- Russian and Armenian copy for the stage-3 notices are proposals pending a native check.
