@@ -1536,6 +1536,7 @@ Date: 2026-10-19 | Status: accepted — every choice below picked by Tigran, 202
 5. **No duplicates.** A unique `DedupeKey` (rental + kind + slot or event id) on both the outbox and the notification table.
 
 **Rejected:** a `TimeZoneInfo` lookup (needs tzdata in the image and Intl in the browser, for a zone without DST); a hand-rolled polling hosted service (Tigran chose a library); Quartz.NET (more setup, no dashboard); `DeliverAt` on `Notification` (every feed and counter query must remember the filter).
+**Amended 2026-10-28 (Tigran):** Hangfire is not installed yet. Until it is, a **simple, loss-tolerant periodic job** (e.g. the hourly AI-search description cleanup, ADR-054) may be a `BackgroundService` with a `PeriodicTimer`, like the existing `BookingExpiryBackgroundService`. Jobs that must not be lost or need retries (scheduled reminders, subscription notifications, Trello #220) still wait for Hangfire.
 
 ## ADR-049: A support case is its own aggregate tied to one rental; support reads and writes the rental chat only while a case on it is open
 Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-08) | Area: backend (support, chat authorization, admin, blocking) + frontend (admin queue, case view) | Spec: v1.1 §9 (O-8, O-12, Q-7, Q-10, Q-11, Q-20), TR-12/21/22/24/25/26/33/34; audit A-9, A-10, C-08, C-09
