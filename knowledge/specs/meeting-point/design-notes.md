@@ -10,6 +10,7 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `Sha
 4. Meeting points are Yerevan only; outside → red chip and blocked confirm (frame iv kept).
 5. Bubble = proposal A: "Meeting point" + subtitle "Owner's home" for home shares, no subtitle for another place; "Open in maps" link row; no coordinates/address; no mini map.
 6. Inbox preview: pin icon + localized "Meeting point" (+ "You:").
+7. "Another place" starts the map on the home point; a point picked there — even one next to home — is sent as `other`, without the "Owner's home" subtitle (Tigran, 2026-10-28).
 
 ## Open / not accepted
 
