@@ -26,7 +26,7 @@ A signed-in user describes the toy in their own words in the catalogue search fi
 - Removing a filter chip is an explicit user change. Automatic widening never removes hard constraints.
 
 ## Catalogue change
-Add a **"Child's age" filter** to the normal catalogue (sidebar and mobile sheet). The API already supports `AgeFromMonths` / `AgeToMonths`.
+Age uses the **existing age groups** (Tigran, 2026-10-28, replacing the design's exact-age select). They are added to the mobile filter sheet; the desktop sidebar already has them. AI maps the child's age to the group that contains it. On desktop the AI field sits above the results on `/listings`, and the header search is hidden on that page.
 
 ## Out of MVP
 Rental-date availability. Browser geolocation. Here "near me" means the saved home point, possibly via the existing distance filter (to confirm in design stage 3). Per-card "why it fits" text. A chat UI.
