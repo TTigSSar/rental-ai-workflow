@@ -45,7 +45,7 @@ Rental-date availability. Browser geolocation. Here "near me" means the saved ho
 - **Retention:** raw query text for 30 days, admin-only, then deleted.
 
 ## Open before ADR (Rule 0)
-- Provider and model. Run a comparative test on about 40 queries (hy/ru/en/translit) with Claude Haiku 5.5, Claude Sonnet 5.5 and an OpenAI mini-class model.
+- ~~Provider and model~~: decided — OpenAI GPT-6 Luna (ADR-054, amended 2026-10-29).
 - Data boundary, provider retention mode, and logging retention.
 - Daily budget ($), per-user rate limit, exhaustion behaviour.
 - API contract: endpoint(s), auth, error codes.
