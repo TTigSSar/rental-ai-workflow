@@ -17,6 +17,7 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
     - **Loading:** previous cards stay in place, dimmed and inert, under one status line with a thin indeterminate bar. A first search shows the existing skeleton.
     - **Re-rank:** "Updating the order" replaces the count line.
     - **Purpose widening:** one quiet note, with no undo.
+11. While AI results are shown, the toolbar has **no count line** ("N toys in Yerevan · most relevant first"), on both desktop and mobile. The sort already says "Most relevant first". During a re-rank, "Updating the order" still appears in that spot. The catalogue outside AI keeps its count line (Tigran, 2026-10-29).
     - **No results:** option **A**, stacked full-width buttons. The primary is "Widen the area", which drops the district filter and searches all of Yerevan, or "Edit description" when no district is set. Secondary actions: "Increase the budget" (focuses the price "To" field, no suggested amount), category pills, and the bell. There is no "Clear filters".
 11. The privacy note is shortened to "Your description is processed by an AI service." (Tigran's decision).
 12. **Bell** in the no-results state: a round button beside the search circle, with a hint under the title that repeats the bell icon inline. Once subscribed, the bell turns into ✓ with the subscribed text, and tapping ✓ unsubscribes. An existing subscription opens directly in that state. It ships with the subscriptions feature (Trello #220, after AI search) and is hidden until then.
