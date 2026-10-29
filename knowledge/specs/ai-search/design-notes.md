@@ -7,7 +7,7 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
 1. Stage 1 rev 2 direction approved (Tigran, 2026-10-26). AI search is an **"AI" switch inside the existing catalogue search field**. There is no separate page, bar or mode screen.
 2. The AI writes into the **existing filters and chips**. There are no separate AI chips. The real catalogue components (category selector, mobile sheet "Cancel / Apply") are kept, not the mock's versions.
 3. Refinement means editing the same description. On mobile the field grows while typing and collapses to one line after a search.
-4. The explanation line states the intent only and never shows filter values.
+4. ~~The explanation line states the intent only and never shows filter values.~~ SUPERSEDED (Tigran, 2026-10-29): there is **no explanation line**. The chips already show what the AI understood. The API's `intent` field stays but is not displayed.
 5. The sort "Most relevant first" is the default in AI mode. Page 1 holds the 20 ranked cards, and page 2 onward opens with the divider "More listings matching your criteria".
 6. A widened district adds **one chip per district** (Kentron, Arabkir, Avan, …), each with its own ×, and those districts are checked in the district filter. This supersedes the one grouped chip (Tigran, 2026-10-27).
 7. A new "Child's age" filter appears in the normal catalogue sidebar and sheet, as drawn in v2.
@@ -18,6 +18,7 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
     - **Re-rank:** "Updating the order" replaces the count line.
     - **Purpose widening:** one quiet note, with no undo.
 11. While AI results are shown, the toolbar has **no count line** ("N toys in Yerevan · most relevant first"), on both desktop and mobile. The sort already says "Most relevant first". During a re-rank, "Updating the order" still appears in that spot. The catalogue outside AI keeps its count line (Tigran, 2026-10-29).
+12. Price gets a chip, as drawn in v2: "Up to 3,000 ֏ per day" / "До 3,000 ֏ в день" / "Օրական մինչև 3,000 ֏" (and "From X ֏ per day" for a min price), each with its own ×, in the catalogue and in AI mode (Tigran, 2026-10-29).
     - **No results:** option **A**, stacked full-width buttons. The primary is "Widen the area", which drops the district filter and searches all of Yerevan, or "Edit description" when no district is set. Secondary actions: "Increase the budget" (focuses the price "To" field, no suggested amount), category pills, and the bell. There is no "Clear filters".
 11. The privacy note is shortened to "Your description is processed by an AI service." (Tigran's decision).
 12. **Bell** in the no-results state: a round button beside the search circle, with a hint under the title that repeats the bell icon inline. Once subscribed, the bell turns into ✓ with the subscribed text, and tapping ✓ unsubscribes. An existing subscription opens directly in that state. It ships with the subscriptions feature (Trello #220, after AI search) and is hidden until then.
