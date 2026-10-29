@@ -1,18 +1,33 @@
 // AI search model test (ADR-054): which Claude model parses DoRent descriptions into catalogue
 // filters, and ranks candidates, well enough in hy/ru/en/translit. Zero dependencies, Node 18+.
-// Usage: ANTHROPIC_API_KEY=... node run.mjs   → results/report.md + results/raw.json
+// Claude models go to Anthropic directly; other providers go through OpenRouter (one key for all).
+// Usage: node run.mjs [model,model,...]   → results/report.md + results/raw.json
+// Needs ANTHROPIC_API_KEY and/or OPENROUTER_API_KEY for the selected models. Runs are merged into
+// results/raw.json, so the report compares every model tested so far.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../..');
+// OpenRouter models report their own cost, so they need no prices here.
 const MODELS = [
-  { id: 'claude-haiku-5-5', inPerM: 0.10, outPerM: 0.50 },
-  { id: 'claude-sonnet-5-5', inPerM: 2.00, outPerM: 10.00 },
+  { id: 'claude-haiku-5-5', via: 'anthropic', inPerM: 0.10, outPerM: 0.50 },
+  { id: 'claude-sonnet-5-5', via: 'anthropic', inPerM: 2.00, outPerM: 10.00 },
+  { id: 'openai/gpt-6-luna', via: 'openrouter' },
+  { id: 'google/gemini-3.5-flash-lite', via: 'openrouter' },
+  { id: 'google/gemini-3.8-flash', via: 'openrouter' },
+  { id: 'deepseek/deepseek-v4.1-flash', via: 'openrouter' },
+  { id: 'qwen/qwen3.8-flash', via: 'openrouter' },
+  { id: 'openai/gpt-6.1-terra', via: 'openrouter' },
+  { id: 'moonshotai/kimi-k3.1-pro', via: 'openrouter' },
 ];
-const KEY = process.env.ANTHROPIC_API_KEY;
-if (!KEY) { console.error('ANTHROPIC_API_KEY is not set'); process.exit(1); }
+const KEYS = { anthropic: process.env.ANTHROPIC_API_KEY, openrouter: process.env.OPENROUTER_API_KEY };
+const ENV = { anthropic: 'ANTHROPIC_API_KEY', openrouter: 'OPENROUTER_API_KEY' };
+const only = process.argv[2]?.split(',');
+const RUN = MODELS.filter(m => only ? only.includes(m.id) : KEYS[m.via]);
+for (const m of RUN) if (!KEYS[m.via]) { console.error(`${ENV[m.via]} is not set (needed for ${m.id})`); process.exit(1); }
+if (!RUN.length) { console.error('No models to run: set ANTHROPIC_API_KEY or OPENROUTER_API_KEY'); process.exit(1); }
 
 const CATEGORIES = [
   ['baby-toys', 'Baby Toys'], ['building-blocks', 'Building Blocks'], ['educational-toys', 'Educational Toys'],
@@ -72,10 +87,14 @@ const RANK_SYSTEM = `You order rental listings by how well they match a parent's
 Return every given listing id exactly once, the best match first. Do not invent ids.`;
 
 async function call(model, system, user, schema, maxTokens) {
+  return model.via === 'openrouter' ? callOpenRouter(model, system, user, schema, maxTokens) : callAnthropic(model, system, user, schema, maxTokens);
+}
+
+async function callAnthropic(model, system, user, schema, maxTokens) {
   const t0 = Date.now();
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': KEY, 'anthropic-version': '2023-06-01' },
+    headers: { 'content-type': 'application/json', 'x-api-key': KEYS.anthropic, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: model.id, max_tokens: maxTokens, system,
       messages: [{ role: 'user', content: user }],
@@ -90,6 +109,34 @@ async function call(model, system, user, schema, maxTokens) {
   const u = body.usage ?? {};
   const cost = ((u.input_tokens ?? 0) * model.inPerM + (u.output_tokens ?? 0) * model.outPerM) / 1e6;
   return { json: JSON.parse(text), ms, cost };
+}
+
+// OpenAI-compatible chat completions. require_parameters keeps requests off providers that would
+// silently ignore the JSON schema; reasoning tokens count against max_tokens, hence the headroom.
+async function callOpenRouter(model, system, user, schema, maxTokens, attempt = 0) {
+  const t0 = Date.now();
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${KEYS.openrouter}` },
+    body: JSON.stringify({
+      model: model.id, max_tokens: maxTokens * 4,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      response_format: { type: 'json_schema', json_schema: { name: 'result', strict: true, schema } },
+      reasoning: { effort: 'low' },
+      provider: { require_parameters: true },
+      usage: { include: true },
+    }),
+  });
+  const ms = Date.now() - t0;
+  const body = await res.json();
+  // New OpenRouter accounts are capped at 20 requests/minute per model: wait and retry instead of failing.
+  if (res.status === 429 && attempt < 8) {
+    await new Promise(r => setTimeout(r, 10_000));
+    return callOpenRouter(model, system, user, schema, maxTokens, attempt + 1);
+  }
+  if (!res.ok || body.error) throw new Error(`${model.id} HTTP ${res.status}: ${JSON.stringify(body.error ?? body).slice(0, 300)}`);
+  const text = (body.choices?.[0]?.message?.content ?? '').replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, '');
+  return { json: JSON.parse(text), ms, cost: body.usage?.cost ?? 0 };
 }
 
 function loadSeedListings() {
@@ -134,8 +181,9 @@ const queries = JSON.parse(fs.readFileSync(path.join(here, 'queries.json'), 'utf
 const listings = loadSeedListings();
 console.log(`${queries.length} queries, ${listings.length} approved seed listings`);
 
-const results = {};
-for (const model of MODELS) {
+const rawFile = path.join(here, 'results/raw.json');
+const results = fs.existsSync(rawFile) ? JSON.parse(fs.readFileSync(rawFile, 'utf8')) : {};
+for (const model of RUN) {
   console.log(`\n== ${model.id}`);
   const parse = await pool(queries, 4, async q => {
     try {
@@ -160,12 +208,13 @@ for (const model of MODELS) {
   results[model.id] = { parse, rank };
 }
 
-// report
+// report: every model with results, in MODELS order
+const REPORTED = MODELS.filter(m => results[m.id]);
 const pct = (a, b) => b ? Math.round((100 * a) / b) + '%' : '–';
 const p95 = xs => { const s = xs.filter(Boolean).sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(0.95 * s.length))] : 0; };
 let md = `# AI search model test — ${new Date().toISOString().slice(0, 10)}\n\n${queries.length} queries (hy/ru/en/translit), ${listings.length} approved seed listings. Effort \`low\`, structured outputs.\n\n`;
 md += `| Model | Fully correct queries | Checks passed | en | ru | hy | translit (31–40) | Errors | Parse p95 | Rank p95 | Cost of run | ≈ $/search |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
-for (const m of MODELS) {
+for (const m of REPORTED) {
   const { parse, rank } = results[m.id];
   const full = parse.filter(r => !r.error && r.passed === r.total).length;
   const sumP = parse.reduce((a, r) => a + r.passed, 0), sumT = parse.reduce((a, r) => a + r.total, 0);
@@ -175,7 +224,7 @@ for (const m of MODELS) {
   md += `| ${m.id} | ${full}/${parse.length} | ${pct(sumP, sumT)} | ${by(r => r.id <= 10)} | ${by(r => r.id > 10 && r.id <= 20)} | ${by(r => r.id > 20 && r.id <= 30)} | ${by(r => r.id > 30)} | ${parse.filter(r => r.error).length + rank.filter(r => r.error).length} | ${(p95(parse.map(r => r.ms)) / 1000).toFixed(1)} s | ${(p95(rank.map(r => r.ms)) / 1000).toFixed(1)} s | $${cost.toFixed(4)} | $${perSearch.toFixed(5)} |\n`;
 }
 md += `\n## Failed checks\n\n`;
-for (const m of MODELS) {
+for (const m of REPORTED) {
   md += `### ${m.id}\n\n`;
   for (const r of results[m.id].parse.filter(r => r.error || r.passed < r.total)) {
     md += r.error ? `- **#${r.id}** error: ${r.error}\n` : `- **#${r.id}** (${r.lang}) ${r.q} → failed: ${Object.entries(r.checks).filter(([, v]) => !v).map(([k]) => k).join(', ')} · got \`${JSON.stringify({ age: r.out.ageMonths, cat: r.out.categorySlug, price: r.out.maxPricePerDay, dist: r.out.districtCodes, hard: r.out.districtIsHard, near: r.out.nearMe, dates: r.out.datesMentioned })}\` · intent: "${r.out.intent}"\n`;
@@ -185,15 +234,15 @@ for (const m of MODELS) {
 md += `## Ranking — top 3 per model (for Tigran to judge)\n\n`;
 for (const q of queries.filter(q => q.rank)) {
   md += `**#${q.id}** ${q.q}\n\n`;
-  for (const m of MODELS) {
+  for (const m of REPORTED) {
     const r = results[m.id].rank.find(x => x.id === q.id);
     md += r.error ? `- ${m.id}: error ${r.error}\n` : `- ${m.id}: ${r.top3.map((t, i) => `${i + 1}. ${t}`).join(' · ')}${r.invented ? ` (invented ids: ${r.invented})` : ''}${r.missing ? ` (missing: ${r.missing})` : ''}\n`;
   }
   md += '\n';
 }
 md += `## Intent lines (sample)\n\n`;
-for (const id of [1, 11, 21, 33]) for (const m of MODELS) { const r = results[m.id].parse.find(x => x.id === id); md += `- #${id} ${m.id}: ${r.error ? 'error' : r.out.intent}\n`; }
+for (const id of [1, 11, 21, 33]) for (const m of REPORTED) { const r = results[m.id].parse.find(x => x.id === id); md += `- #${id} ${m.id}: ${r.error ? 'error' : r.out.intent}\n`; }
 fs.mkdirSync(path.join(here, 'results'), { recursive: true });
 fs.writeFileSync(path.join(here, 'results/report.md'), md);
-fs.writeFileSync(path.join(here, 'results/raw.json'), JSON.stringify(results, null, 2));
+fs.writeFileSync(rawFile, JSON.stringify(results, null, 2));
 console.log('\n\nwritten results/report.md');
