@@ -101,7 +101,8 @@ Index on `CreatedAt`. One migration, `AddAiSearchLog`.
 - The field grows while typing and collapses after a search. The privacy note shows only while typing. A first-use example is shown. Esc and Enter work.
 - **State:** a new slice in the listings store (actions/effects/selectors) holds:
   - `aiMode`, `description` (kept separately, never written to `q`), `aiResult` flags, `rankedIds`, `aiStatus`
-  - The URL keeps only `ai=1`; the description is not put in the URL.
+  - The URL gets `ai=1`. The description and `q` are never put in the URL. The AI-applied filter values are written as the existing catalogue params (`categoryId`, `ageGroup`, `maxPrice`, `districtIds`, `radiusKm`), so the URL-driven filter controls keep them. (Tigran, 2026-10-29.)
+  - `AiSearchFilters` has no `minPrice` and no origin other than home. So after an AI search or re-rank, a user's min price or a non-home radius is dropped: the filters show only what the server applied. (Tigran, 2026-10-29: accepted for now, no follow-up card.)
   - Turning the switch off restores the previous filters, `q`, sort and view.
 - **Results:**
   - AI-set values go into the **existing** filters and chips, with the `#C24600` border and the count badge. Each widened district gets its own chip and is checked.
