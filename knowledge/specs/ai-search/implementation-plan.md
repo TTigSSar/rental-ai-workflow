@@ -114,7 +114,7 @@ Index on `CreatedAt`. One migration, `AddAiSearchLog`.
 - **States** (stage 2–3 design):
   - loading: dimmed cards plus a status line and an indeterminate bar; skeleton on the first search
   - no results: option A — "Widen the area" drops districts, "Increase the budget" focuses price "To", category pills, "Edit description"; the bell stays hidden until #220
-  - `aiUnavailable`: a `ui-msg` info notice, and the switch turns off automatically but stays enabled
+  - `aiUnavailable`: a `ui-msg` info notice, and the switch turns off automatically but stays enabled. Results are the ordinary catalogue (the applied filters, no `q`, normal paging), as design-notes 13 says; the description never goes into `q` or the URL (Tigran, 2026-10-29 — a "text-search page 1 only" variant was tried and dropped after two failed fixes)
   - budget spent: `aria-disabled` switch, tooltip on desktop / Note on mobile, driven by `status` loaded on page init
   - 429: a warn notice; the description and cards stay
   - dates and location Notes
