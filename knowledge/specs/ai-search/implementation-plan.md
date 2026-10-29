@@ -1,7 +1,7 @@
 # AI search — implementation plan (ADR-054)
 
 ## Context
-Product, design (stages 1–3) and ADR-054 are approved. The models are Haiku 5.5 for parsing and Sonnet 5.5 for ranking, chosen by `tools/ai-search-eval`. Approved behaviour lives in `knowledge/specs/ai-search/spec.md` and `design-notes.md`. Design: Claude Design project `df24299b…`, files `AI Search Stage 1 v2 / 2 / 3.html`.
+Product, design (stages 1–3) and ADR-054 are approved. Both parsing and ranking use **OpenAI GPT-6 Luna**, called directly at the OpenAI API, as chosen by `tools/ai-search-eval` (ADR-054, amended 2026-10-29; this replaces the earlier choice of Haiku 5.5 to parse and Sonnet 5.5 to rank). Approved behaviour lives in `knowledge/specs/ai-search/spec.md` and `design-notes.md`. Design: Claude Design project `df24299b…`, files `AI Search Stage 1 v2 / 2 / 3.html`.
 
 Goal: a signed-in user turns on the "AI" switch in the catalogue search and describes a toy. The API fills the existing filters, ranks up to 20 candidates and returns real listings. If AI fails, the catalogue still works.
 
@@ -56,17 +56,17 @@ Index on `CreatedAt`. One migration, `AddAiSearchLog`.
   - `IAiSearchService` / `AiSearchService`:
     1. validate
     2. check the budget
-    3. parse (Haiku)
+    3. parse (GPT-6 Luna)
     4. map to `ListingsQueryFilter`. The age group comes from months. `nearMe` with a home point means the server reads the **user's home point** (`User.HomeLatitude/Longitude`) and sets radius 1 km. Without a home point, `locationNotConsidered`. Exact coordinates **never** go to the model.
     5. query the catalogue
     6. if 0 results, widen up to 2 steps: districts via the adjacency constant, then drop purpose keywords. Never widen age, an explicit price or "only".
-    7. rank the first ≤20 (Sonnet), validate ids (drop unknown, append missing). **This step runs only for `page == 1`.** For `page ≥ 2` the service makes **no LLM call at all**: no parse (the request's `filters` are used as they are) and no rank. It returns the plain catalogue order (`CreatedAt desc`) with `excludeIds` applied, `ranked: false` and `intent: null`. A filter change re-ranks, so it is always a new page-1 request.
+    7. rank the first ≤20 (GPT-6 Luna), validate ids (drop unknown, append missing). **This step runs only for `page == 1`.** For `page ≥ 2` the service makes **no LLM call at all**: no parse (the request's `filters` are used as they are) and no rank. It returns the plain catalogue order (`CreatedAt desc`) with `excludeIds` applied, `ranked: false` and `intent: null`. A filter change re-ranks, so it is always a new page-1 request.
     8. write the log (page ≥ 2 is not logged, because it costs nothing)
   - Validate the intent line on the server: drop it if it contains digits or district names.
   - DTOs as in the contract. Error codes go in a static class `AiSearchErrorCodes`, following `HomePointErrorCodes.cs`.
 - **Catalogue reuse:** add `ExcludeIds` to `ListingsQueryFilter` and apply it in `ListingsQueryService.BuildApprovedListingsQuery`. Add an internal method that returns candidates, so the Approved-only rule stays in one place.
 - **Infrastructure:**
-  - `AnthropicAiSearchModel`: a typed `HttpClient`, the same pattern as `ResendEmailSender.cs`. Raw HTTP `POST /v1/messages` with structured outputs and effort `low`.
+  - `OpenAiAiSearchModel`: a typed `HttpClient`, the same pattern as `ResendEmailSender.cs`. It sends raw HTTP to the OpenAI API (`Authorization: Bearer`) with a strict JSON-schema structured output and reasoning effort `low`. The request shape is in `callOpenRouter` in `tools/ai-search-eval/run.mjs`, which is OpenAI-compatible. Verify the direct model id (`gpt-6-luna`) and the endpoint against the current OpenAI docs.
   - Prompts are taken from `tools/ai-search-eval/run.mjs`. The description is passed as data.
   - Timeout 8 s, no retry. Never throws: failure returns null.
   - `AiSearchOptions` (section `AiSearch`): `ApiKey`, `ParseModel`, `RankModel`, `DailyBudgetUsd = 1`, `PerUserPerMinute = 5`, `NearMeRadiusKm = 1`. Bound with `ValidateOnStart`. A missing key means AI is unavailable, not a startup failure.
@@ -131,7 +131,7 @@ Index on `CreatedAt`. One migration, `AddAiSearchLog`.
 
 ## Verification
 1. **Fast tier after each writer:** `dotnet test rental-api/RentalPlatform.sln`, `cd Rental-Ui && npm test && npm run build`.
-2. **verifier, live walk:** API plus UI locally with the real `ANTHROPIC_API_KEY`, accounts `renter@rental.local` (has a home point) and a guest. Check:
+2. **verifier, live walk:** API plus UI locally with the real `OPENAI_API_KEY`, accounts `renter@rental.local` (has a home point) and a guest. Check:
    - en/ru/hy queries fill the filters
    - the ranked page 1 and the page 2 divider
    - a filter change re-ranks
