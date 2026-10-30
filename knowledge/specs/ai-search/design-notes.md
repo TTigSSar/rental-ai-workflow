@@ -17,8 +17,6 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
     - **Loading:** previous cards stay in place, dimmed and inert, under one status line with a thin indeterminate bar. A first search shows the existing skeleton.
     - **Re-rank:** "Updating the order" replaces the count line.
     - **Purpose widening:** one quiet note, with no undo.
-11. While AI results are shown, the toolbar has **no count line** ("N toys in Yerevan · most relevant first"), on both desktop and mobile. The sort already says "Most relevant first". During a re-rank, "Updating the order" still appears in that spot (Tigran, 2026-10-29). Amended the same day: the ordinary catalogue (AI off) **also drops its count line** ("20+ toys in Yerevan"), so the line is gone everywhere.
-12. Price gets a chip, as drawn in v2: "Up to 3,000 ֏ per day" / "До 3,000 ֏ в день" / "Օրական մինչև 3,000 ֏" (and "From X ֏ per day" for a min price), each with its own ×, in the catalogue and in AI mode (Tigran, 2026-10-29).
     - **No results:** option **A**, stacked full-width buttons. The primary is "Widen the area", which drops the district filter and searches all of Yerevan, or "Edit description" when no district is set. Secondary actions: "Increase the budget" (focuses the price "To" field, no suggested amount), category pills, and the bell. There is no "Clear filters".
 11. The privacy note is shortened to "Your description is processed by an AI service." (Tigran's decision).
 12. **Bell** in the no-results state: a round button beside the search circle, with a hint under the title that repeats the bell icon inline. Once subscribed, the bell turns into ✓ with the subscribed text, and tapping ✓ unsubscribes. An existing subscription opens directly in that state. It ships with the subscriptions feature (Trello #220, after AI search) and is hidden until then.
@@ -30,6 +28,9 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
     - **Daily budget used up:** the switch is shown `aria-disabled`. Desktop shows a tooltip on hover or focus; mobile shows a Note under the field for about 5 s after a tap. The client needs the budget state before searching.
     - **Rate limit:** a warn notice under the search bar. The description and the cards stay, and no request is sent.
     - **Dates in the query:** a Note. **"Near me"** with a home point sets the existing distance filter "From your home" to 1 km (the filter default) and shows the chip "Within 1 km of home". Without a home point: the Note "Location isn't considered." plus a "Choose a district" link. At most two Notes are stacked.
+14. While AI results are shown, the toolbar has **no count line** ("N toys in Yerevan · most relevant first"), on both desktop and mobile. The sort already says "Most relevant first". During a re-rank, "Updating the order" still appears in that spot (Tigran, 2026-10-29). Amended the same day: the ordinary catalogue (AI off) **also drops its count line** ("20+ toys in Yerevan"), so the line is gone everywhere.
+15. Price gets a chip, as drawn in v2: "Up to 3,000 ֏ per day" / "До 3,000 ֏ в день" / "Օրական մինչև 3,000 ֏" (and "From X ֏ per day" for a min price), each with its own ×, in the catalogue and in AI mode (Tigran, 2026-10-29).
+16. Desktop toolbar layout (Tigran, 2026-10-30): the filter chips take their **own row on top**, full width, wrapping as needed. Under them, one row with the **sort on the left** and **List / Map on the right**. Mobile is unchanged.
 
 ## Open / not accepted
 
