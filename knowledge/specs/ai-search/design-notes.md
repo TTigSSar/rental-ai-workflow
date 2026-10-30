@@ -18,7 +18,7 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
     - **Re-rank:** "Updating the order" replaces the count line.
     - **Purpose widening:** one quiet note, with no undo.
     - **No results:** option **A**, stacked full-width buttons. The primary is "Widen the area", which drops the district filter and searches all of Yerevan, or "Edit description" when no district is set. Secondary actions: "Increase the budget" (focuses the price "To" field, no suggested amount), category pills, and the bell. There is no "Clear filters".
-11. The privacy note is shortened to "Your description is processed by an AI service." (Tigran's decision).
+11. The privacy note reads "Your request is processed by AI" / "Ваш запрос обрабатывает искусственный интеллект" / "Ձեր հարցումը մշակում է արհեստական բանականությունը" (Tigran, 2026-10-30; supersedes "Your description is processed by an AI service.").
 12. **Bell** in the no-results state: a round button beside the search circle, with a hint under the title that repeats the bell icon inline. Once subscribed, the bell turns into ✓ with the subscribed text, and tapping ✓ unsubscribes. An existing subscription opens directly in that state. It ships with the subscriptions feature (Trello #220, after AI search) and is hidden until then.
 
 13. Stage 3 approved (Tigran, 2026-10-28), file `AI Search Stage 3.html` (+ `ai4-app.jsx`, `ai4-parts.jsx`):
@@ -32,6 +32,9 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
 15. Price gets a chip, as drawn in v2: "Up to 3,000 ֏ per day" / "До 3,000 ֏ в день" / "Օրական մինչև 3,000 ֏" (and "From X ֏ per day" for a min price), each with its own ×, in the catalogue and in AI mode (Tigran, 2026-10-29).
 16. Desktop toolbar layout (Tigran, 2026-10-30): the filter chips take their **own row on top**, full width, wrapping as needed. Under them, one row with the **sort on the left** and **List / Map on the right**. Mobile is unchanged.
 17. Mobile, AI on with an empty field (Tigran, 2026-10-30): the full hint and the example box under the bar are replaced by **one plain line**: "Describe what you're looking for. For example: a bike for a 3-year-old, up to 3,000 AMD a day" / "Опишите, что вы ищете. Например: велосипед для ребёнка 3 лет, до 3000 драм в день" / "Նկարագրեք, թե ինչ եք փնտրում։ Օրինակ՝ հեծանիվ 3 տարեկան երեխայի համար, օրական մինչև 3000 դրամ". The example part is a link: tapping it fills the field and applies it to the search, as the old example box did. Desktop unchanged.
+18. Desktop AI field: the long placeholder is always fully visible (the field is tall enough for it; nothing clipped) (Tigran, 2026-10-30).
+19. Mobile toolbar: List / Map and the sort stay on **one row**. The relevance sort label is shortened: hy "Համապատասխանության", ru "По соответствию", en "Relevance" (Tigran, 2026-10-30; ru/en by analogy).
+20. Switching AI **on** carries the text typed in the simple search into the AI field (no search runs until the user submits). Switching off still restores the simple search as it was (Tigran, 2026-10-30).
 
 ## Open / not accepted
 
