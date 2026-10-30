@@ -607,3 +607,10 @@ Date: 2026-10-26 | Area: frontend unit tests (date-relative UI rules)
 **Cause:** the fixture's `startDate` was `'2026-10-25'`. The component offers approved-cancel only while `startDate > today` (`canCancelApproved`), so on 2026-10-26 the menu item disappeared. The shared `conversation()` fixture in that spec still hard-codes October 2026 dates.
 **Fix:** Rental-Ui 0b78a93 gives that case a far-future range (2999-01-01…05).
 **Rule:** a fixture that feeds a rule comparing against "today" builds its dates relative to the current date (or pins the clock with fake timers). Never hard-code a calendar date there. A red test on an untouched baseline is a finding to diagnose, not noise to note and skip.
+
+## M-076: A fast-toggle fix filtered the whole filter stream and silently broke every mobile filter in AI mode
+Date: 2026-10-30 | Area: frontend (listings filters, AI search, RxJS streams)
+**Symptom:** with AI on, the mobile filter sheet's Apply/Clear/chip × did nothing: no URL change, no re-rank. The reviewer caught it before merge. Unit tests and three verifier walks were green.
+**Cause:** to stop a late debounced `q` from reaching the URL after AI was switched on (design-notes 20), Rental-Ui 2fc47a8 added `filter(() => !this.aiMode())` to the whole `filterForm.valueChanges` stream, not to the text field. The specs only covered the `q` path, and the live walks never opened the mobile sheet while AI was on.
+**Fix:** Rental-Ui 6aab34d drops only the late text (`query = null`) and flushes the debounce on sheet Apply/Clear; specs drive Apply with `?ai=1`.
+**Rule:** when suppressing one field's emission, filter that field, never the shared form stream. A verifier walk for a filter/AI change must include changing a filter from the mobile sheet while AI is on, with the console open.
