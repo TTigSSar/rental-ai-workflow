@@ -1,4 +1,4 @@
-# AI search model test — 2026-10-29
+# AI search model test — 2026-10-31
 
 40 queries (hy/ru/en/translit), 56 approved seed listings. Effort `low`, structured outputs.
 
@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | claude-haiku-5-5 | 38/40 | 99% | 100% | 90% | 90% | 100% | 0 | 3.3 s | 7.6 s | $0.0160 | $0.00102 |
 | claude-sonnet-5-5 | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 3.0 s | 3.8 s | $0.2628 | $0.01295 |
-| openai/gpt-6-luna | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 1.1 s | 0.9 s | $0.0087 | $0.00044 |
+| openai/gpt-6-luna | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 1.6 s | 0.7 s | $0.0099 | $0.00048 |
 | google/gemini-3.5-flash-lite | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 1.4 s | 1.0 s | $0.0323 | $0.00148 |
 | google/gemini-3.8-flash | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 8.4 s | 5.1 s | $0.0639 | $0.00300 |
 | deepseek/deepseek-v4.1-flash | 37/40 | 99% | 100% | 90% | 80% | 100% | 0 | 2.7 s | 0.7 s | $0.0331 | $0.00341 |
@@ -60,7 +60,7 @@
 
 - claude-haiku-5-5: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center)
 - claude-sonnet-5-5: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Outdoor Backyard Slide
-- openai/gpt-6-luna: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center) (invented ids: 1) (missing: 1)
+- openai/gpt-6-luna: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center) (invented ids: 2) (missing: 2)
 - google/gemini-3.5-flash-lite: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center)
 - google/gemini-3.8-flash: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center)
 - deepseek/deepseek-v4.1-flash: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center)
@@ -72,7 +72,7 @@
 
 - claude-haiku-5-5: 1. Montessori Wooden Toy Set · 2. VTech Alphabet Train · 3. Melissa & Doug Shape Sorting Cube
 - claude-sonnet-5-5: 1. Montessori Wooden Toy Set · 2. VTech Alphabet Train · 3. Melissa & Doug Shape Sorting Cube
-- openai/gpt-6-luna: 1. LeapFrog LeapStart Interactive Learning System · 2. Montessori Wooden Toy Set · 3. Melissa & Doug Shape Sorting Cube
+- openai/gpt-6-luna: 1. LeapFrog LeapStart Interactive Learning System · 2. VTech Alphabet Train · 3. Montessori Wooden Toy Set
 - google/gemini-3.5-flash-lite: 1. LeapFrog LeapStart Interactive Learning System · 2. VTech Alphabet Train · 3. Montessori Wooden Toy Set
 - google/gemini-3.8-flash: 1. VTech Alphabet Train · 2. Montessori Wooden Toy Set · 3. Melissa & Doug Shape Sorting Cube
 - deepseek/deepseek-v4.1-flash: 1. Montessori Wooden Toy Set · 2. VTech Alphabet Train · 3. Melissa & Doug Shape Sorting Cube
@@ -96,7 +96,7 @@
 
 - claude-haiku-5-5: 1. Children's Puzzle Bundle · 2. Classic Board Game Trio · 3. Montessori Wooden Toy Set
 - claude-sonnet-5-5: 1. Children's Puzzle Bundle · 2. Classic Board Game Trio · 3. Montessori Wooden Toy Set
-- openai/gpt-6-luna: 1. Children's Puzzle Bundle · 2. Classic Board Game Trio · 3. LEGO Duplo Starter Set
+- openai/gpt-6-luna: 1. Children's Puzzle Bundle · 2. Classic Board Game Trio · 3. LeapFrog LeapStart Interactive Learning System
 - google/gemini-3.5-flash-lite: 1. Children's Puzzle Bundle · 2. Classic Board Game Trio · 3. LEGO Duplo Starter Set
 - google/gemini-3.8-flash: 1. Children's Puzzle Bundle · 2. Classic Board Game Trio · 3. LEGO Duplo Starter Set
 - deepseek/deepseek-v4.1-flash: 1. Children's Puzzle Bundle · 2. Classic Board Game Trio · 3. Montessori Wooden Toy Set
@@ -132,7 +132,7 @@
 
 - claude-haiku-5-5: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center) (invented ids: 1) (missing: 1)
 - claude-sonnet-5-5: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center)
-- openai/gpt-6-luna: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center)
+- openai/gpt-6-luna: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Outdoor Backyard Slide
 - google/gemini-3.5-flash-lite: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center)
 - google/gemini-3.8-flash: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Outdoor Backyard Slide
 - deepseek/deepseek-v4.1-flash: 1. Kids Balance Bike · 2. Little Tikes Cozy Coupe · 3. Intex Inflatable Kiddie Pool (Ocean Play Center)
@@ -144,7 +144,7 @@
 
 - #1 claude-haiku-5-5: Looking for a balance bike for outdoor play
 - #1 claude-sonnet-5-5: Looking to rent a balance bike for outdoor play
-- #1 openai/gpt-6-luna: Looking for a balance bike for outdoor play.
+- #1 openai/gpt-6-luna: Balance bike for outdoor play
 - #1 google/gemini-3.5-flash-lite: balance bike
 - #1 google/gemini-3.8-flash: rent a balance bike for outdoor play
 - #1 deepseek/deepseek-v4.1-flash: Looking for a balance bike for outdoor play
@@ -153,7 +153,7 @@
 - #1 moonshotai/kimi-k3.1-pro: Find a balance bike for outdoor play.
 - #11 claude-haiku-5-5: Поиск беговела для игр на улице
 - #11 claude-sonnet-5-5: Беговел для игры на улице
-- #11 openai/gpt-6-luna: Ищет беговел для игр на улице.
+- #11 openai/gpt-6-luna: Беговел для игр на улице
 - #11 google/gemini-3.5-flash-lite: поиск беговела для улицы
 - #11 google/gemini-3.8-flash: Аренда беговела для катания на улице
 - #11 deepseek/deepseek-v4.1-flash: Ищет беговел для игры на улице
@@ -162,7 +162,7 @@
 - #11 moonshotai/kimi-k3.1-pro: Поиск беговела для игр на улице
 - #21 claude-haiku-5-5: Հավասարակշռության հեծանիվ բացօթյա խաղերի համար Կենտրոնում
 - #21 claude-sonnet-5-5: Հավասարակշռության հեծանիվ բացօթյա խաղերի համար
-- #21 openai/gpt-6-luna: Փնտրում է հավասարակշռության հեծանիվ՝ բացօթյա խաղերի համար։
+- #21 openai/gpt-6-luna: Հավասարակշռության հեծանիվ բացօթյա խաղերի համար
 - #21 google/gemini-3.5-flash-lite: Որոնվում է հավասարակշռության հեծանիվ բացօթյա խաղերի համար
 - #21 google/gemini-3.8-flash: Հավասարակշռության հեծանիվ բացօթյա խաղերի համար
 - #21 deepseek/deepseek-v4.1-flash: Փնտրում եմ հավասարակշռության հեծանիվ բացօթյա խաղերի համար
@@ -171,7 +171,7 @@
 - #21 moonshotai/kimi-k3.1-pro: Հավասարակշռության հեծանիվ բացօթյա խաղերի համար
 - #33 claude-haiku-5-5: Երեխայի համար հեծանիվ է փնտրվում
 - #33 claude-sonnet-5-5: Երեխայի համար հեծանիվ վարձակալելու որոնում
-- #33 openai/gpt-6-luna: Հեծանիվ է փնտրում։
+- #33 openai/gpt-6-luna: Հեծանիվ
 - #33 google/gemini-3.5-flash-lite: Հեծանիվ երեխայի համար
 - #33 google/gemini-3.8-flash: հեծանիվ վարձակալելու համար
 - #33 deepseek/deepseek-v4.1-flash: Փնտրում է մանկական հեծանիվ վարձակալության համար
