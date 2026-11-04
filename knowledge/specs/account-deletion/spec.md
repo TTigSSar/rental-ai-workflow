@@ -25,7 +25,13 @@ Goal: satisfy the Google Play account-deletion requirement. A signed-in user del
 6. Blocking set is written against today's `BookingStatus`; re-map if ADR-046 v1.1 states land first.
 
 ## UI
-1. **Profile → "Delete account"** (danger zone at the bottom of the profile/settings page).
+0. **Settings page** (Tigran 2026-11-04). The profile sidebar (and the mobile profile menu) gets one "Settings" entry → `/profile/settings`, a child route of the profile shell. The page is a list of rows (icon, label, chevron):
+   - "Password" → `/profile/settings/password` (the existing security page, moved; `/profile/security` redirects there). For `hasPassword = false` the row is inactive with the hint "You sign in with Google".
+   - "Language" (moved from the mobile menu, works as today).
+   - "Notifications" and "Verification ID" (moved from the sidebar, inactive, marked "Coming soon").
+   - "Delete account" — separated at the bottom, danger text, opens the confirmation dialog.
+   - "Earnings & payouts" is removed (no payments through DoRent). "Log out" stays in the sidebar/menu, not in Settings.
+1. **Settings → "Delete account"** opens the dialog below.
 2. **Confirmation dialog:** what is erased / what stays, password field (or email field when `hasPassword = false`), destructive button "Delete account", Cancel. Inline error for a wrong value (ADR-045 mapper).
 3. **Blocked state:** on 409 the dialog lists the open rentals with links to them and explains they must be finished first.
 4. **After success:** local logout, redirect home, toast "Your account has been deleted".
