@@ -1658,3 +1658,15 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 **Rejected:** hard delete (breaks counterparties' history); 30-day grace period (Hangfire job, MVP not worth it); email-link confirmation (more work for little gain over a password); public no-login deletion form (spam surface); auto-cancelling `Approved`/`Active` rentals (a toy can be left with the renter and no owner in the system).
 
 **Related:** ADR-029, ADR-030 §11, ADR-046, ADR-055.
+
+**Amended 2026-11-04 (Tigran), after the architecture review — gaps closed, inside the same decision:**
+1. `AiSearchLog.UserId` is set to NULL for the user's rows (metrics stay).
+2. The user's listings also lose `AddressLine`, `Latitude/Longitude`, `PublicLatitude/Longitude`; their `ListingLocationBeforeHomePoint` rows are deleted.
+3. Meeting-point coordinates (`ChatMessage.MeetingPoint*`, ADR-053) in messages the user sent are erased; the message row stays.
+4. `Report.TargetLabel` / `ModerationLogEntry.TargetLabel` that name the user are replaced with "Deleted user".
+5. Login, Google sign-in and password reset refuse a row with `DeletedAt` explicitly, not by relying on the scrubbed email and empty hash.
+6. Creating a booking on a listing whose owner is deleted is refused (closes the race with a deletion in progress).
+7. Order and locking: conditional `UPDATE Users … WHERE DeletedAt IS NULL` first (Users before other tables, as ADR-029), then the open-rental check, then Pending closes by CAS (a lost CAS rolls back → 409). A repeat after commit gets 401 (token revoked).
+8. The 409 `account.has_open_rentals` carries `openRentals: [{bookingId, listingTitle, startDate, endDate, role}]` as a ProblemDetails extension (ADR-045).
+9. A 401 on the delete call (e.g. a retry after a dropped connection) makes the UI log out locally and show "You've been signed out. If your account was deleted, we've sent you an email."
+10. Dependency: the blocking set (`Approved`, `Active`) is written against today's `BookingStatus`; if ADR-046 v1.1 states land first, it is re-mapped to the v1.1 equivalents of "confirmed" and "ongoing".
