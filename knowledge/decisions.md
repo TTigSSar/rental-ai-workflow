@@ -1641,3 +1641,20 @@ Supersedes ADR-021 §5 and ADR-035 §3. Describing a password change or reset as
 
 **Rejected:** a `jti` denylist; short access tokens + refresh tokens (larger client change, revocation delayed); a DB read per request without a cache; plain `IMemoryCache` eviction (an in-flight stale read re-fills a revoked entry); Redis (no need with one instance); accepting `tv`-less tokens until expiry (a temporary code path); 401 on a DB failure (logs everyone out).
 **Amended 2026-11-02 (Tigran) — a block does not revoke sessions (narrows §1 and §4):** the backend implementation showed that a pipeline `IsBlocked` check plus rotation on block contradicts ADR-030 §11: it kills the pre-block JWT that the moderation-chat appeal (`isAppealingSuspendedMember`) depends on, because login refuses blocked users, and it turns the mapped 403 `*.user_blocked` into a bare 401. So a block keeps ADR-030 §11 unchanged: service-level 403 on every write except the appeal, read access until the token expires (≤ 60 min). Revocation covers password change and reset, the account-takeover recovery paths the card was about. Rejected: (b) a block revokes everything and the appeal moves out of chat (amends ADR-030, needs a new appeal path); (c) revocation plus a pipeline allow-list for the appeal routes (complex, and a blocked user still cannot get a token after expiry).
+
+## ADR-056: Account deletion is self-service anonymization — the row stays, personal data is erased, sessions end, a confirmation email is sent
+Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and privacy, external service | Approved by Tigran 2026-11-04 (model, open rentals, confirmation, public page, confirmation email)
+
+**Context:** Google Play requires in-app account deletion plus a public web link explaining how to delete. `Users` is referenced with `Restrict` by bookings, reviews, chats, reports and moderation log, so a hard delete would destroy the other party's history.
+
+**Decision:**
+1. **Anonymize, don't delete.** `DELETE /api/auth/me` sets `Users.DeletedAt` and, in the same transaction, erases name, phone, avatar (and its file), location, home point, password hash, external provider link and language; email becomes `deleted-{id}@deleted.invalid` (frees the address for a new registration). `TokenVersion + 1` ends every session (ADR-055). Favorites, notifications received and tokens are deleted. The deleted user's own listings go to `Archived`. Bookings, reviews, chat messages and reports stay and show the author as "Deleted user" (localized in the UI). Notification actor snapshots held by other users lose the name and avatar.
+2. **Open rentals.** Refused with 409 `account.has_open_rentals` while the user is a party to an `Approved` or `Active` booking. `Pending` bookings are closed by the deletion: outgoing ones cancelled, incoming ones rejected, through the normal ADR-046 transitions.
+3. **Confirmation.** Users with a password re-enter it; accounts without one (Google only) type their email. Wrong value → 400 `account.invalid_confirmation`. Admins cannot delete themselves (403 `account.admin_cannot_delete`).
+4. **Confirmation email** (widens ADR-029 §5 scope): "your account was deleted", en/hy/ru, sent after the commit to the pre-erasure address and language, through the existing Resend seam and send budget; a failed send is logged, never fails the deletion.
+5. **Public page** `/account-deletion` (no auth): how to delete, what is erased, what is kept. Its URL goes into the Play Console. No form, no backend.
+6. **Blocked users may delete** (Play requires the path). Accepted risk: the freed email lets them re-register.
+
+**Rejected:** hard delete (breaks counterparties' history); 30-day grace period (Hangfire job, MVP not worth it); email-link confirmation (more work for little gain over a password); public no-login deletion form (spam surface); auto-cancelling `Approved`/`Active` rentals (a toy can be left with the renter and no owner in the system).
+
+**Related:** ADR-029, ADR-030 §11, ADR-046, ADR-055.
