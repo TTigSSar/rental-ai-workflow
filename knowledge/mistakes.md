@@ -614,3 +614,17 @@ Date: 2026-10-30 | Area: frontend (listings filters, AI search, RxJS streams)
 **Cause:** to stop a late debounced `q` from reaching the URL after AI was switched on (design-notes 20), Rental-Ui 2fc47a8 added `filter(() => !this.aiMode())` to the whole `filterForm.valueChanges` stream, not to the text field. The specs only covered the `q` path, and the live walks never opened the mobile sheet while AI was on.
 **Fix:** Rental-Ui 6aab34d drops only the late text (`query = null`) and flushes the debounce on sheet Apply/Clear; specs drive Apply with `?ai=1`.
 **Rule:** when suppressing one field's emission, filter that field, never the shared form stream. A verifier walk for a filter/AI change must include changing a filter from the mobile sheet while AI is on, with the console open.
+
+## M-077: A local-calendar-day spec used UTC literals, so it depended on the runner's timezone and went red intermittently
+Date: 2026-11-02 | Area: frontend unit tests (date/timezone fixtures)
+**Symptom:** `notification-grouping.spec.ts` > "returns only Today when nothing is older" failed 2 of 4 full `npm test` runs (`expected 'earlier' to be 'today'`) during AI search 6/6 verification; unrelated to the change under test.
+**Cause:** `groupNotifications` groups by the viewer's local calendar day (correct UX), but the fixture used `2026-07-03T12:00Z` vs `2026-07-03T01:00Z`, which fall on different local days at UTC-1 and west (and UTC+12 and east). Reproduced with `$env:TZ='America/Los_Angeles'; npx ng test --include='**/notification-grouping.spec.ts' --watch=false`. Why it failed on a UTC+4 machine is not proven.
+**Fix:** Rental-Ui f502f78 builds `now` and items from local components (`new Date(2026, 6, 3, 12)`…). Afterwards 8 consecutive full runs green and the spec passes under LA, Auckland, Kiritimati and Yerevan.
+**Rule:** a fixture for logic that compares local days builds its dates from local components (or pins TZ explicitly), never from `Z` literals. Related: M-075. A TZ sweep (`$env:TZ='America/Los_Angeles'; npm test`) is a cheap way to find the rest.
+
+## M-078: A plan for a global auth check read the ADRs it superseded but not the one that had already rejected that check
+Date: 2026-11-04 | Area: auth surface, ADR conformance (planning)
+**Symptom:** ADR-055 (JWT revocation) was planned, approved and implemented with an `IsBlocked` rejection in `OnTokenValidated` and a TokenVersion rotation on block. backend-dev then reported NEEDS_INPUT: ADR-030 §11 (alternative g3) had explicitly rejected a global per-request block check, because it kills the pre-block JWT the moderation-chat appeal depends on. The change also turned the mapped 403 `*.user_blocked` into a bare 401.
+**Cause:** the plan read the ADRs named on the Trello card (021, 028, 030 §4, 035) and grepped `IsBlocked` in code, but never grepped `knowledge/decisions.md` for the mechanism itself (`OnTokenValidated`, "per-request", "block check"). The rejection sat in ADR-030 §11, a section about accepted residual risks, not about auth.
+**Fix:** Tigran chose "a block does not revoke" (ADR-055 amendment, 2026-11-02); rental-api 114ed70 removed the block check and rotation; a test pins that a blocked user's pre-block token still gets 403 and the appeal sends.
+**Rule:** before proposing a mechanism, grep the decisions file for the mechanism's own name and its rejected-alternative wording ("rejected", "(g", the hook/method name), not just for the ADRs a card links. The writer's NEEDS_INPUT caught it; the plan review should have.
