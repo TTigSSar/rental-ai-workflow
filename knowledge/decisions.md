@@ -596,6 +596,7 @@ Date: 2026-10-08 | Status: accepted | Area: auth surface, data model, API contra
    - During the 60 s cooldown the response is instead **429 `auth.verification_cooldown`** with `Retry-After`, and nothing changes.
    - A Google/Apple sign-in on a pending email resets the account: `PasswordHash = ""`, profile from the provider, tokens revoked, account verified.
    - A blocked pending account is never replaced.
+   - **"The same email" means ordinally equal after `Trim` + `ToLowerInvariant`**, not collation-equal (amended 2026-11-04, Tigran; rental-api d8527d3, Trello o9Nl4QwN). SQL Server CI_AS matches lookalikes (`ß`=`ss`, fullwidth = ASCII), so a register whose lookup hits a row with a different stored address gets the ordinary **409 `auth.duplicate_email`**: nothing replaced, nothing sent, the victim's cooldown and budget untouched. Rejected: a silent 201 with nothing sent — hides the collision, but the person waits for a mail that never comes.
 3. **Verification needs both the token and the password (D1).**
    - Request: `POST /api/auth/verify-email { token, password }`.
    - A wrong password returns **401 `auth.invalid_credentials`** and does not consume the token.
