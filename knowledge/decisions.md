@@ -1671,3 +1671,12 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 8. The 409 `account.has_open_rentals` carries `openRentals: [{bookingId, listingTitle, startDate, endDate, role}]` as a ProblemDetails extension (ADR-045).
 9. A 401 on the delete call (e.g. a retry after a dropped connection) makes the UI log out locally and show "You've been signed out. If your account was deleted, we've sent you an email."
 10. Dependency: the blocking set (`Approved`, `Active`) is written against today's `BookingStatus`; if ADR-046 v1.1 states land first, it is re-mapped to the v1.1 equivalents of "confirmed" and "ongoing".
+
+**Amended 2026-11-06 (Tigran), after the design review (ux-designer + reviewer):**
+1. **Notifications naming the user are deleted.** Notification copy is rendered at emit time with the actor's first name inside `Title`/`Body` (ADR-025), so scrubbing `ActorName` is not enough. Deletion removes other recipients' non-system notifications on entities (bookings, conversations, reviews) the user was a party to. Replaces the "scrub actor snapshots" part of §1.
+2. **409 `openRentals` items gain `listingImageUrl` (nullable)** — the blocked list shows the toy image.
+3. **A lost CAS while closing Pending returns 409 `account.state_changed`** (UI: "try again"), not `account.has_open_rentals`.
+4. **After deletion:** the chat with a deleted user is read-only; a review of a completed rental may still be left; no notifications or emails are created for a deleted recipient. Anonymous review endpoints show the author as "Deleted user"; owner/renter review summaries for a deleted user's id return 404, like the public profile.
+5. **Blocked users:** `DELETE /api/auth/me` is exempt from the ADR-030 §11 blocked-write 403 (amends ADR-030 §11). After their token expires a blocked user cannot sign in and so cannot self-delete — **accepted risk** (Tigran), no support-mail or login carve-out for now.
+6. **Copy:** reviews are described as public ("stay public as 'Deleted user'"); the network-error text is neutral ("Something went wrong. Please try again.") for every failure without a definite answer.
+7. **UI rules:** admins do not see the Delete account row; while the DELETE is in flight Cancel/close/Escape are disabled; a meeting-point message with erased coordinates reads "Location removed"; the blocked-state CTA leads to My rentals or Incoming requests by the roles listed; "Deleted user" (never a link) appears on every surface that shows a person, with server-side hy/ru/en strings for notification copy.
