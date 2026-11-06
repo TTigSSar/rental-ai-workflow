@@ -1688,3 +1688,45 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 **Amended 2026-11-06 (Tigran), during AD-2 implementation:**
 1. **Pending closes without `BookingEvent`.** ADR-046 v1.1 (`BookingEvent`, booking version) is not implemented yet, so the deletion closes each Pending booking with a status compare-and-set (`UPDATE … WHERE Status = Pending`, as the expiry sweep does); a row count ≠ 1 rolls back → 409 `account.state_changed`. No schema is added. When ADR-046 lands, the close step appends events and the blocking set is re-mapped (spec Behaviour 6).
 2. **No owner notification for a cancelled outgoing request.** Same as today's renter cancel: no `NotificationKind` for "cancelled" exists; the owner sees the chat system line. Incoming requests rejected by the deletion notify the renter with the existing `Declined` kind and actor "Deleted user".
+
+## ADR-057: Demand analytics are daily booking-request counters per Yerevan day × district × category — no identity, no FKs, kept forever, admin-only
+Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: data model, API/contract, privacy boundary (Trello P3-3) | Plan: rental-api@d743959
+**Decision:**
+- **The signal:** one persisted booking request counts as one signal. It is counted on the Yerevan day of `CreatedAt` (fixed UTC+4, ADR-048), under the listing's district and category **at request time**. Status changes never touch the count, and a refused create is never counted. Searches and views are not counted.
+- **Storage:** table `DemandDailyCounts(Day, DistrictId?, CategoryId, BookingRequests)` with a clustered unique key on `(Day, DistrictId, CategoryId)`. It uses `HasFilter(null)`, so a missing district is one cell. The table has **no identity columns and no FKs**, so history survives the hard delete of a category. A category deleted with reassign keeps its old counts.
+- **Write:** an atomic EF `ExecuteUpdate +1`, or `Add` when the row does not exist yet. It runs in the same Serializable transaction as the booking insert, as the last step. District and category are passed in by the service. There is no retry and no idempotency key: a duplicate submit is already refused as `booking.overlap`.
+- **Backfill:** a one-time step in the migration uses the **current** listing metadata. **`Down` loses history irreversibly**, so the rollback is a backup restore (ADR-058).
+- **Retention:** kept forever.
+- **API:** `GET /api/admin/demand?from&to`, admins only.
+  - `from` and `to` are inclusive Yerevan days, and the parameters must come together or not at all.
+  - The default range is the last 30 days and the maximum is 366 days.
+  - Errors return 400 `admin.demand_range_invalid`.
+  - The response contains `DateOnly` days and is ordered by day, district (nulls first), then category.
+- **Privacy:** the data is **pseudonymous aggregate, not anonymous**. A small cell can point to one person. Small cells are accepted while only admins read the data, because admins already see `Bookings`. Any other consumer (AI, owners, exports) gets coarsened and/or suppressed data under a new ADR, never the raw daily cells.
+**Why:** a counter store keeps analytics away from raw events and renter identity, and request-time snapshots do not drift when owners move.
+**Known:**
+- The SQL Server concurrency gate proves the counter cell is safe. It does not cover the booking-create path, which already deadlocks (1205) on concurrent first bookings of never-booked listings (Trello #246, existed before this ADR).
+- Dev-seed bookings may fall into NULL-district cells.
+**Rejected:** (a) aggregating at query time from `Bookings`, which reads raw events joined to renters and drifts after moves; (b) counting searches or views, which is noisy; (c) a geohash grid, too fine for so few bookings; (d) FKs, because Restrict blocks category deletes and Cascade erases history; (e) a best-effort increment after commit, which loses counts; (f) a raw T-SQL upsert, which breaks the SQLite test host; (g) differential privacy or thresholds in v1.
+
+## ADR-058: A release whose migration backfills persistent data from a live write path stops the old API first, takes a stop-time backup, and is never rolled back code-only
+Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: delivery topology (first used by ADR-057)
+**Decision:** when a migration creates or backfills persistent data that the new code then keeps in step with a live write path, the release runs in this order:
+1. Rehearse per ADR-023, including the data invariant.
+2. Tag the current images.
+3. **Stop the old `api` explicitly.**
+4. Take a **stop-time backup** and verify it.
+5. Run `up -d`, so the new API migrates and backfills before it listens.
+6. Run `smoke.sh` and the release-specific invariant check.
+
+The invariant check is a documented deploy step, and `smoke.sh` stays unchanged (ADR-010 is untouched). **A code-only rollback is prohibited** whenever old code would write without keeping the new data in step. The rollback is a restore of the stop-time backup over the live DB, followed by the old images, using the documented procedure.
+
+That procedure covers the bookings made after the deploy:
+- extract them before the restore;
+- re-enter them with their statuses and timestamps, without duplicates;
+- handle their notifications;
+- tell the affected renters and owners.
+
+**Why:** the old process and the backfill must never overlap, and old code must never write after the backfill. Either one leaves the data permanently inconsistent.
+**Accepted:** about 1–4 minutes of booking-write downtime per such release, provided the rehearsal validates the procedure.
+**Rejected:** (a) a 503 maintenance flag, because the old image does not have it; (b) a self-healing recount in the app, which cannot reproduce snapshot data and is not zero-gap; (c) automated dual-write or new infrastructure.
