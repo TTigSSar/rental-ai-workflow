@@ -220,7 +220,7 @@ const pct = (a, b) => b ? Math.round((100 * a) / b) + '%' : '–';
 const median = xs => { const s = xs.filter(Boolean).sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 const p95 = xs => { const s = xs.filter(Boolean).sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(0.95 * s.length))] : 0; };
 let md = `# AI search model test — ${new Date().toISOString().slice(0, 10)}\n\n${queries.length} queries (hy/ru/en/translit), ${listings.length} approved seed listings. Structured outputs; effort per row. Rank cands = candidates sent (20 by GUID before 2026-11-06, 10 numbered since, as in production). Out tok = median completion tokens per call, reasoning in brackets.\n\n`;
-md += `| Model@effort | Rank cands | Fully correct queries | Checks passed | en | ru | hy | translit (31–40) | Errors | Parse median / p95 | Rank median / p95 | Parse out tok | Rank out tok | Cost of run | ≈ $/search |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
+md += `| Model@effort | Rank cands | Fully correct queries | Checks passed | en | ru | hy | translit (31–40) | hy short (41–48) | Errors | Parse median / p95 | Rank median / p95 | Parse out tok | Rank out tok | Cost of run | ≈ $/search |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
 for (const m of REPORTED) {
   const { parse, rank, rankCandidates = 20 } = results[m.id];
   const tok = rs => rs.some(r => r.outTokens != null) ? `${median(rs.map(r => r.outTokens))} (${median(rs.map(r => r.reasoningTokens))})` : '–';
@@ -230,7 +230,7 @@ for (const m of REPORTED) {
   const by = f => { const xs = parse.filter(f); return pct(xs.filter(r => !r.error && r.passed === r.total).length, xs.length); };
   const cost = [...parse, ...rank].reduce((a, r) => a + r.cost, 0);
   const perSearch = parse.reduce((a, r) => a + r.cost, 0) / parse.length + rank.reduce((a, r) => a + r.cost, 0) / Math.max(1, rank.length);
-  md += `| ${m.id} | ${rankCandidates} | ${full}/${parse.length} | ${pct(sumP, sumT)} | ${by(r => r.id <= 10)} | ${by(r => r.id > 10 && r.id <= 20)} | ${by(r => r.id > 20 && r.id <= 30)} | ${by(r => r.id > 30)} | ${parse.filter(r => r.error).length + rank.filter(r => r.error).length} | ${sec(median(parse.map(r => r.ms)))} / ${sec(p95(parse.map(r => r.ms)))} s | ${sec(median(rank.map(r => r.ms)))} / ${sec(p95(rank.map(r => r.ms)))} s | ${tok(parse)} | ${tok(rank)} | $${cost.toFixed(4)} | $${perSearch.toFixed(5)} |\n`;
+  md += `| ${m.id} | ${rankCandidates} | ${full}/${parse.length} | ${pct(sumP, sumT)} | ${by(r => r.id <= 10)} | ${by(r => r.id > 10 && r.id <= 20)} | ${by(r => r.id > 20 && r.id <= 30)} | ${by(r => r.id > 30 && r.id <= 40)} | ${by(r => r.id > 40)} | ${parse.filter(r => r.error).length + rank.filter(r => r.error).length} | ${sec(median(parse.map(r => r.ms)))} / ${sec(p95(parse.map(r => r.ms)))} s | ${sec(median(rank.map(r => r.ms)))} / ${sec(p95(rank.map(r => r.ms)))} s | ${tok(parse)} | ${tok(rank)} | $${cost.toFixed(4)} | $${perSearch.toFixed(5)} |\n`;
 }
 md += `\n## Failed checks\n\n`;
 for (const m of REPORTED) {
