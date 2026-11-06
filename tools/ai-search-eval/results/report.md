@@ -1,21 +1,21 @@
 # AI search model test — 2026-11-06
 
-40 queries (hy/ru/en/translit), 56 approved seed listings. Structured outputs; effort per row. Rank cands = candidates sent (20 by GUID before 2026-11-06, 10 numbered since, as in production). Out tok = median completion tokens per call, reasoning in brackets.
+48 queries (hy/ru/en/translit), 56 approved seed listings. Structured outputs; effort per row. Rank cands = candidates sent (20 by GUID before 2026-11-06, 10 numbered since, as in production). Out tok = median completion tokens per call, reasoning in brackets.
 
-| Model@effort | Rank cands | Fully correct queries | Checks passed | en | ru | hy | translit (31–40) | Errors | Parse median / p95 | Rank median / p95 | Parse out tok | Rank out tok | Cost of run | ≈ $/search |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| claude-haiku-5-5 | 20 | 38/40 | 99% | 100% | 90% | 90% | 100% | 0 | 1.6 / 3.3 s | 6.4 / 7.6 s | – | – | $0.0160 | $0.00102 |
-| claude-sonnet-5-5 | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 1.8 / 3.0 s | 2.5 / 3.8 s | – | – | $0.2628 | $0.01295 |
-| openai/gpt-6-luna | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 0.7 / 1.6 s | 0.6 / 0.7 s | – | – | $0.0099 | $0.00048 |
-| google/gemini-3.5-flash-lite | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 1.0 / 1.4 s | 0.9 / 1.0 s | – | – | $0.0323 | $0.00148 |
-| google/gemini-3.8-flash | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 2.4 / 8.4 s | 2.3 / 5.1 s | – | – | $0.0639 | $0.00300 |
-| deepseek/deepseek-v4.1-flash | 20 | 37/40 | 99% | 100% | 90% | 80% | 100% | 0 | 0.5 / 2.7 s | 0.6 / 0.7 s | – | – | $0.0331 | $0.00341 |
-| qwen/qwen3.8-flash | 20 | 37/40 | 99% | 100% | 100% | 80% | 90% | 7 | 1.1 / 10.7 s | 1.0 / 5.3 s | – | – | $0.0217 | $0.00139 |
-| openai/gpt-6.1-terra | 20 | 37/40 | 99% | 90% | 100% | 80% | 100% | 0 | 0.8 / 1.1 s | 0.8 / 1.1 s | – | – | $0.0741 | $0.00378 |
-| moonshotai/kimi-k3.1-pro | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 3.9 / 6.9 s | 3.3 / 5.0 s | – | – | $0.1664 | $0.00982 |
-| openai/gpt-6-luna@low | 10 | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 0.6 / 1.5 s | 0.5 / 0.6 s | 145 (67) | 151 (118) | $0.0092 | $0.00035 |
-| openai/gpt-6-luna@minimal | 10 | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 0.6 / 0.9 s | 0.5 / 1.2 s | 142 (66) | 147 (114) | $0.0044 | $0.00024 |
-| openai/gpt-6-luna@none | 10 | 40/40 | 100% | 100% | 100% | 100% | 100% | 0 | 0.5 / 0.9 s | 0.5 / 0.7 s | 77 (0) | 31 (0) | $0.0073 | $0.00025 |
+| Model@effort | Rank cands | Fully correct queries | Checks passed | en | ru | hy | translit (31–40) | hy short (41–48) | Errors | Parse median / p95 | Rank median / p95 | Parse out tok | Rank out tok | Cost of run | ≈ $/search |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| claude-haiku-5-5 | 20 | 38/40 | 99% | 100% | 90% | 90% | 100% | – | 0 | 1.6 / 3.3 s | 6.4 / 7.6 s | – | – | $0.0160 | $0.00102 |
+| claude-sonnet-5-5 | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | – | 0 | 1.8 / 3.0 s | 2.5 / 3.8 s | – | – | $0.2628 | $0.01295 |
+| openai/gpt-6-luna | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | – | 0 | 0.7 / 1.6 s | 0.6 / 0.7 s | – | – | $0.0099 | $0.00048 |
+| google/gemini-3.5-flash-lite | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | – | 0 | 1.0 / 1.4 s | 0.9 / 1.0 s | – | – | $0.0323 | $0.00148 |
+| google/gemini-3.8-flash | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | – | 0 | 2.4 / 8.4 s | 2.3 / 5.1 s | – | – | $0.0639 | $0.00300 |
+| deepseek/deepseek-v4.1-flash | 20 | 37/40 | 99% | 100% | 90% | 80% | 100% | – | 0 | 0.5 / 2.7 s | 0.6 / 0.7 s | – | – | $0.0331 | $0.00341 |
+| qwen/qwen3.8-flash | 20 | 37/40 | 99% | 100% | 100% | 80% | 90% | – | 7 | 1.1 / 10.7 s | 1.0 / 5.3 s | – | – | $0.0217 | $0.00139 |
+| openai/gpt-6.1-terra | 20 | 37/40 | 99% | 90% | 100% | 80% | 100% | – | 0 | 0.8 / 1.1 s | 0.8 / 1.1 s | – | – | $0.0741 | $0.00378 |
+| moonshotai/kimi-k3.1-pro | 20 | 40/40 | 100% | 100% | 100% | 100% | 100% | – | 0 | 3.9 / 6.9 s | 3.3 / 5.0 s | – | – | $0.1664 | $0.00982 |
+| openai/gpt-6-luna@low | 10 | 40/40 | 100% | 100% | 100% | 100% | 100% | – | 0 | 0.6 / 1.5 s | 0.5 / 0.6 s | 145 (67) | 151 (118) | $0.0092 | $0.00035 |
+| openai/gpt-6-luna@minimal | 10 | 40/40 | 100% | 100% | 100% | 100% | 100% | – | 0 | 0.6 / 0.9 s | 0.5 / 1.2 s | 142 (66) | 147 (114) | $0.0044 | $0.00024 |
+| openai/gpt-6-luna@none | 10 | 47/48 | 100% | 100% | 100% | 100% | 100% | 88% | 0 | 0.6 / 0.7 s | 0.5 / 0.6 s | 76 (0) | 31 (0) | $0.0029 | $0.00013 |
 
 ## Failed checks
 
@@ -65,6 +65,7 @@
 
 ### openai/gpt-6-luna@none
 
+- **#42** (hy) խաղալիք 8 ամսական երեխայի համար → failed: intentClean · got `{"age":8,"cat":"baby-toys","price":null,"dist":[],"hard":false,"near":false,"dates":false}` · intent: "Խաղալիք 8 ամսական երեխայի համար"
 
 ## Ranking — top 3 per model (for Tigran to judge)
 
@@ -111,7 +112,7 @@
 - moonshotai/kimi-k3.1-pro: 1. Baby Activity Gym · 2. Tiny Love Meadow Days Gymini Play Mat · 3. Chicco Baby Senses Activity Gym
 - openai/gpt-6-luna@low: 1. Baby Activity Gym · 2. Tiny Love Meadow Days Gymini Play Mat · 3. Chicco Baby Senses Activity Gym
 - openai/gpt-6-luna@minimal: 1. Baby Activity Gym · 2. Tiny Love Meadow Days Gymini Play Mat · 3. Chicco Baby Senses Activity Gym
-- openai/gpt-6-luna@none: 1. Baby Activity Gym · 2. Tiny Love Meadow Days Gymini Play Mat · 3. Fisher-Price 4-in-1 Ocean Wonders Bouncer
+- openai/gpt-6-luna@none: 1. Baby Activity Gym · 2. Tiny Love Meadow Days Gymini Play Mat · 3. Chicco Baby Senses Activity Gym
 
 **#8** Jigsaw puzzle for a 4-year-old under 1500
 
@@ -156,7 +157,7 @@
 - moonshotai/kimi-k3.1-pro: 1. Melissa & Doug Shape Sorting Cube · 2. Melissa & Doug Wooden Peg Puzzle - Farm Animals · 3. VTech Alphabet Train
 - openai/gpt-6-luna@low: 1. Hape Pound & Tap Bench · 2. LEGO Duplo Starter Set · 3. LeapFrog LeapStart Interactive Learning System
 - openai/gpt-6-luna@minimal: 1. Hape Pound & Tap Bench · 2. LEGO Duplo Starter Set · 3. LeapFrog LeapStart Interactive Learning System
-- openai/gpt-6-luna@none: 1. Hape Pound & Tap Bench · 2. LEGO Duplo Starter Set · 3. LeapFrog LeapStart Interactive Learning System
+- openai/gpt-6-luna@none: 1. Hape Pound & Tap Bench · 2. Montessori Wooden Toy Set · 3. LeapFrog LeapStart Interactive Learning System
 
 **#21** Հավասարակշռության հեծանիվ իմ 3 տարեկան երեխայի համար, օրական մինչև 3000, ցանկալի է Կենտրոնում, բացօթյա խաղերի համար։
 
@@ -186,7 +187,7 @@
 - #1 moonshotai/kimi-k3.1-pro: Find a balance bike for outdoor play.
 - #1 openai/gpt-6-luna@low: Balance bike for outdoor play
 - #1 openai/gpt-6-luna@minimal: Balance bike for outdoor play
-- #1 openai/gpt-6-luna@none: Balance Bike for Outdoor Play
+- #1 openai/gpt-6-luna@none: Balance bike for outdoor play
 - #11 claude-haiku-5-5: Поиск беговела для игр на улице
 - #11 claude-sonnet-5-5: Беговел для игры на улице
 - #11 openai/gpt-6-luna: Беговел для игр на улице
@@ -222,4 +223,4 @@
 - #33 moonshotai/kimi-k3.1-pro: Հեծանիվ վարձակալել
 - #33 openai/gpt-6-luna@low: Մանկական հեծանիվ
 - #33 openai/gpt-6-luna@minimal: Հեծանիվ
-- #33 openai/gpt-6-luna@none: Առանց ոտնակների հեծանիվ
+- #33 openai/gpt-6-luna@none: Հեծանիվ
