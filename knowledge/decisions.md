@@ -640,6 +640,7 @@ Date: 2026-10-08 | Status: accepted | Area: auth surface, data model, API contra
     - Apple auto-links only for `privaterelay.appleid.com`, `icloud.com`, `me.com` and `mac.com`; otherwise **409 `auth.external_link_conflict`**.
     - Apple's `email_verified` is accepted as a bool or a string; otherwise the email is ignored.
     - Linking is still keyed by the provider `sub` first.
+    - **An email match means ordinally equal** (§2, amended 2026-11-06, Tigran; rental-api 565e382, Trello 2v9z3e1h). A provider email that only collation-matches a stored address (a Workspace on `busineß.am` with `hd` = that domain) gets **409 `auth.external_link_conflict`** before the blocked check: nothing linked, reset or signed in, and the twin cannot learn the victim is blocked. Rejected: a new dedicated error code (new copy in three languages for no gain).
 11. **Schema.**
     - New table `UserTokens`:
 
