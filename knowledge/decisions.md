@@ -1705,7 +1705,11 @@ Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: data model, API
 - **Privacy:** the data is **pseudonymous aggregate, not anonymous**. A small cell can point to one person. Small cells are accepted while only admins read the data, because admins already see `Bookings`. Any other consumer (AI, owners, exports) gets coarsened and/or suppressed data under a new ADR, never the raw daily cells.
 **Why:** a counter store keeps analytics away from raw events and renter identity, and request-time snapshots do not drift when owners move.
 **Known:**
-- The SQL Server concurrency gate proves the counter cell is safe. It does not cover the booking-create path, which already deadlocks (1205) on concurrent first bookings of never-booked listings (Trello #246, existed before this ADR).
+- The SQL Server concurrency gate proves the counter cell is safe. It does not cover the booking-create path, which already deadlocked (1205) before this ADR when creates on **different** listings ran at the same time (Trello #246). There are two causes:
+  - a never-booked listing shares its index gap with its neighbours;
+  - on a small `Bookings` table, which is the production case today, the overlap check scans the clustered index and range-locks every key.
+
+  The race test therefore pre-seeds rows and fillers so that it isolates the counter cell. The counter itself is not affected, but it adds a little to how long the locks are held.
 - Dev-seed bookings may fall into NULL-district cells.
 **Rejected:** (a) aggregating at query time from `Bookings`, which reads raw events joined to renters and drifts after moves; (b) counting searches or views, which is noisy; (c) a geohash grid, too fine for so few bookings; (d) FKs, because Restrict blocks category deletes and Cascade erases history; (e) a best-effort increment after commit, which loses counts; (f) a raw T-SQL upsert, which breaks the SQLite test host; (g) differential privacy or thresholds in v1.
 
