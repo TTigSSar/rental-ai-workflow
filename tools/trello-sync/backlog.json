@@ -10,16 +10,6 @@
     "desc": "The last remaining 1:1 gap vs the DoRent chat design: the thread header shows the counterpart's name but no \"Active now\" presence line.\n\nScope: a real presence service (SignalR connection tracking, last-seen), presence exposed on ChatConversationDetailsResponse, rendered in the thread header.\n\nDo NOT fake it with a static label — the design implies live presence.\n\nUnblocked: M-008 (docker nginx hub proxy) is FIXED as of 2026-07-11, so SignalR now works in the docker stack too.\n\nSource: orchestrator gap analysis, 2026-07-11."
   },
   {
-    "name": "Chat: push notifications for new messages",
-    "priority": "Medium",
-    "labels": [
-      "chat",
-      "backend",
-      "frontend"
-    ],
-    "desc": "No push/notification when a new chat message arrives while the app is closed or the user is not on the chat tab.\n\nRealtime (SignalR) delivers in-app only. Consider reusing the existing Notification vertical (INotificationEmitter) and/or web push.\n\nSource: knowledge/feature-notes/2026-07-chat-phase1.md — Deferred."
-  },
-  {
     "name": "Chat: app-wide entry points — audit + complete",
     "priority": "Medium",
     "labels": [
@@ -406,17 +396,6 @@
     "prompt": "Read CLAUDE.md (Delegation, Rule 0), ADR-031 (with both 2026-10-13 amendments), ADR-014, M-060 and M-062 in knowledge/.\n\nGoal: avatar initials meet WCAG AA (4.5:1) against EVERY point of their background.\n\nStep 1, measure (Explore, or a read-only frontend-dev pass). List every avatar/initials style with its gradient stops and the worst-case white-text contrast at the lightest stop. Use a script; axe cannot do this.\n\nStep 2, decision. This is a colour decision (ADR-031), so bring Tigran options with a recommendation:\n- (a) start the orange stop at --ui-color-primary-strong (#c24600) and keep the gradient shape;\n- (b) a solid strong fill, no gradient;\n- (c) dark initials on a light tint;\n- (d) a Claude Design pass if the look changes noticeably.\nAmend ADR-031 with the choice.\n\nStep 3, route 6: frontend-dev (colour only; every avatar variant through one token or mixin, not 14 copies) → verifier (full; screenshots of each avatar variant at 375 and 1280, en + hy; contrast computed per variant) → PR.\n\nE2E only on a fresh server (prove the port is free first, M-062). Commit on dev; the orchestrator pushes."
   },
   {
-    "name": "Security: issued JWTs cannot be revoked — password change, reset and block leave old sessions alive",
-    "priority": "High",
-    "labels": [
-      "backend",
-      "security",
-      "db-migration"
-    ],
-    "desc": "Deferred out of the password-reset card (https://trello.com/c/TLnsDdZx) on 2026-10-14, with Tigran's approval: ADR-035 §3.\n\nFacts as of 2026-10-14:\n- `User` has no `SecurityStamp`, `PasswordChangedAt` or token-version column.\n- `IJwtTokenService` issues a bare 1-hour access token. There is no `jti` denylist and no refresh token.\n- So nothing revokes an issued JWT. A stolen token survives a password change (ADR-021 §5), a password reset (ADR-035 §3) and a block (`IsBlocked`), until it expires, up to 1 hour.\n\nWhy it matters: password reset is the recovery path after an account takeover, and today it does not log the attacker out. A reset that leaves the attacker's session alive is worth less than it looks.\n\nArea: auth surface, data model (a migration), the token validation on every authenticated request.",
-    "prompt": "Read CLAUDE.md, ADR-021 §5, ADR-028, ADR-030 and ADR-035 in knowledge/decisions.md, plus M-013 and M-016.\n\nGoal: issued JWTs can be revoked. A password change, a password reset and an admin block invalidate every token issued before them.\n\nThis is a structural change: a schema change, a new JWT claim and a check on every authenticated request. Start in plan mode and bring Tigran these decisions, each with a recommendation:\n1. Mechanism. A `Users.SecurityStamp` (or a token version int) carried as a claim and compared on each request, vs a `jti` denylist, vs short-lived access tokens plus refresh tokens.\n2. Where the check runs: `JwtBearerEvents.OnTokenValidated`, and its cost (one user read per request, or a short-lived cache, and what staleness that cache allows).\n3. Which events rotate the stamp: password change, password reset, block, unblock, the ADR-028 pending replacement, and the ADR-030 external reset.\n4. Whether the caller's own session survives its own password change (a fresh token in the response) or is logged out too. ADR-021 §5 forbids describing the current behaviour as \"signing out other devices\"; update that copy rule once revocation is real.\n5. The SignalR hubs (`/hubs/*`): how a revoked token's open connection is closed.\n6. Rollout: tokens issued before the deploy carry no stamp claim. Accept them until they expire (1 hour) or reject them.\nWrite the ADR before any code. The migration is APPROVAL_REQUIRED.\n\nRoute 8: backend-dev → contract-guardian (if the change-password response changes) → frontend-dev (if the UI reacts) → verifier (full) → reviewer → qa-engineer → /security-review.\n\nTests use the real JWT pipeline, not a fake authentication handler (M-013)."
-  },
-  {
     "name": "Security: a recycled mailbox can take over a Google-created account through password reset",
     "priority": "Low",
     "labels": [
@@ -434,26 +413,6 @@
     ],
     "desc": "Found on 2026-10-14 by the verifier and the reviewer during the password-reset work (ADR-035).\n\n- `--ui-color-error` (#d43f5e, `Rental-Ui/src/styles.css:48`) measures 4.49:1 on white. ADR-034 requires 4.5:1 for text.\n- It is the shared field-error colour of `ui-input` (`ui-input.component.css:16,238`), so every form error in the app sits just under AA, not only the new reset screens.\n- Pre-existing: ADR-034 darkened `--ui-color-danger` (#d9342b → #cc2d25) but did not list `--ui-color-error`.",
     "prompt": "Read CLAUDE.md and ADR-034 in knowledge/decisions.md (its values table and the \"minimal darkening in hue\" rule).\n\nGoal: `--ui-color-error` in Rental-Ui/src/styles.css meets 4.5:1 against every background it is used on (white field background, the error field tint, #faf8f4 page background).\n\n1. Find every use of `--ui-color-error` (grep), list each text/background pair and measure it.\n2. Darken the token minimally in its own hue until the worst pair passes 4.5:1, the way ADR-034 did for the other semantic colours. Check whether it should simply become `--ui-color-danger`; if so, say why.\n3. Add a row to the ADR-034 values table (Was / Now / Worst case after) in the same change.\n\nRoute 6 (Rental-Ui only, no contract change): frontend-dev → verifier (fast). It is a visible change: the verifier takes before/after screenshots of a form with a field error (sign-in dialog with an invalid email, and /profile/security with a mismatch) at 1280 and 375, and the orchestrator shows them as a before/after page before asking for the merge."
-  },
-  {
-    "name": "Favourites survive a logout: the favourites store has no logout reset",
-    "priority": "Medium",
-    "labels": [
-      "frontend",
-      "privacy"
-    ],
-    "desc": "Found on 2026-10-14 by qa-engineer while reproducing the password-reset session-replace bug (ADR-035).\n\n- The favourites reducer in Rental-Ui has no reset on `AuthActions.logout`. Other user-scoped state (home origin, listings origin, auth) is cleared on logout; favourites are not.\n- Likely effect: after user A logs out on a shared browser, the next user (or a signed-out visitor) can still see A's favourite marks until a reload. Not reproduced live yet.\n- Pre-existing, unrelated to password reset. The session-replace fix (frontend-dev, 2026-10-14) may or may not cover it as a side effect; check its report before starting.",
-    "prompt": "Read CLAUDE.md and the feature note / commit of the password-reset session-replace fix in Rental-Ui (search the git log for \"session\" after b821005).\n\nGoal: no user's favourites survive a logout or a switch to another user.\n\n1. Reproduce first: sign in as renter@rental.local, favourite two listings, log out without reloading, browse listings as a guest, then sign in as user2@rental.local. Record whether renter's favourite marks show at each step.\n2. If they leak: reset the favourites slice on logout and on the identity-change mechanism, the same way the other user-scoped slices are reset. Do not add a second mechanism.\n3. Unit spec: the favourites reducer returns its initial state on logout. Mocked e2e: favourites marks disappear after logout.\n4. If nothing leaks, report why and close the card.\n\nRoute 6 (Rental-Ui only, no contract change): frontend-dev → verifier (fast). Confirmed bug → qa-engineer verdict before closing."
-  },
-  {
-    "name": "Security: a lookalike email (ß=ss, fullwidth) can replace someone else's pending registration",
-    "priority": "Medium",
-    "labels": [
-      "backend",
-      "security"
-    ],
-    "desc": "Found on 2026-10-16 by backend-dev while fixing M-066 (password-reset recipient). Pre-existing code from ADR-028, not part of the password-reset feature.\n\n- `EmailVerificationService.RegisterPendingAsync` calls `FindAccountStateAsync(candidate.Email)`. On SQL Server's default collation (`SQL_Latin1_General_CP1_CI_AS`, `Users.Email nvarchar(320)`), a lookalike address matches: `ß`=`ss`, `æ`=`ae`, fullwidth letters equal ASCII, some code points are ignored.\n- So registering `victim@busineß.am` finds the PENDING registration of `victim@business.am`, and `TryReplacePendingAsync` replaces it with the candidate.\n- Not yet analysed: which address the replaced row keeps, and which address the verification mail goes to (`SendAsync(candidate.Email, …)` sends to the submitted one). If the row keeps the victim's address and the link goes to the attacker's twin, the attacker verifies with their own password and owns an account under the victim's email (a squat; the victim can then recover it through password reset, which since M-066 mails the stored address).\n- A pending registration owns no data by construction (ADR-028), so this is not a data leak; at worst it is an address squat or a lost pending sign-up.\n- The fix pattern already exists: rental-api `99274cc` (forgot-password, resend-verification) compares stored and requested addresses ordinally and treats a mismatch as unknown.",
-    "prompt": "Read CLAUDE.md, ADR-028 (§2 pending replacement, §4 atomicity) and ADR-035 in knowledge/decisions.md, plus M-066 in knowledge/mistakes.md. Look at rental-api commit 99274cc for the fix pattern.\n\nGoal: a lookalike address (collation-equal but not ordinally equal) never replaces, verifies or mails someone else's pending registration.\n\n1. Trace register for a candidate whose address is collation-equal to an existing pending row: which row is replaced, which Email the row ends with, which address the verification mail goes to, and what a later verify does. Write the outcome down before changing code. Also check the 409 path for a verified row and the unique index on Users.Email (CI): a twin can never be inserted as a second row.\n2. Fix with the 99274cc pattern: after the lookup, compare the stored and requested addresses ordinally; a mismatch must not replace the pending row. Decide with Tigran what the twin registrant gets: a 409 like an existing address (reveals the twin collides) or the same response as a fresh pending sign-up with nothing changed and nothing sent. Recommend one; this touches ADR-028 §2, so amend it.\n3. Tests: a store-fake test and one [SqlServerFact] on real SQL Server proving the collation match and that the victim's pending row and password are untouched.\n\nRoute 7 (rental-api only) unless the register response changes, then route 8: backend-dev → verifier (fast, then full) → reviewer → /security-review."
   },
   {
     "name": "i18n: strip UTF-8 BOM from hy.json / ru.json and guard against it",
@@ -512,26 +471,6 @@
     "prompt": "TASK: Category names are shown in English regardless of UI language (hy/ru/en). Districts are already localized. Make category names follow the UI language everywhere they appear (catalogue sidebar filters, category chips/cards, listing details, create/edit listing form, admin).\nFIRST (Rule 0): there is no ADR on localizing reference data. Before any code, present Tigran the options — (a) UI-side translation keys keyed by a stable category slug/code (check how districts are localized and mirror it), (b) per-language names stored in the DB and returned by the API — with blast radius (contract change? migration?) and a recommendation; record the approved choice as an ADR.\nROUTE: (a) with no contract change → 6 (frontend-dev → verifier); (b) or any DTO/schema change → 8.\nSCOPE: Rental-Ui listings-page.component.html:35 and other category renderers; rental-api Migrations/20260716103601_SeedReferenceCategories.cs, Category entity, categories endpoint.\nDONE_WHEN: in hy and ru every category name in the catalogue, listing details and listing form is translated; switching language updates them without reload; tests cover it; verifier before/after screenshots."
   },
   {
-    "name": "Security: a lookalike provider email (Google Workspace on busineß.am) can link to or reset someone else's account",
-    "priority": "High",
-    "labels": [
-      "backend",
-      "security"
-    ],
-    "desc": "Found on 2026-11-04 by backend-dev while fixing Trello o9Nl4QwN (lookalike email on register, rental-api d8527d3). Pre-existing, ADR-028 §2/§10 + ADR-030.\n\n- `AuthService.ExternalAsync` (rental-api `AuthService.cs:299`) looks up by provider identity first; if none, `ResolveExternalUserByEmailAsync` → `FindByEmailAsync` (`AuthService.cs:671`, `UserAuthStore.cs:22-23`) matches `Users.Email` under SQL Server CI_AS collation, so `ß`=`ss` and fullwidth = ASCII. There is no ordinal re-check of `existing.Email` against the provider email.\n- When the provider email is \"authoritative\" (`IsTrustedForAutoLink`, `AuthService.cs:781-793`): a **verified** collation-twin row gets the attacker's provider identity linked and the attacker is signed in as the victim (`AuthService.cs:711-741`); a **pending** twin row is reset to verified for the attacker (`TryResetPendingForExternalAsync`, `EmailVerificationStore.cs:261-291`).\n- Realistic path: Google Workspace on a lookalike domain (`busineß.am`), `hd` = that domain → authoritative. gmail.com / googlemail.com / Apple domains are fixed ASCII and the providers don't issue lookalike local parts, so no practical path there. Not verified: how Google formats `hd`/email for IDN domains (unicode vs punycode).\n- Fix pattern exists: rental-api 99274cc (resend, forgot-password) and d8527d3 (register) — compare stored and requested addresses ordinally after Trim+ToLowerInvariant.\n- Login (`AuthService.cs:171`) uses the same CI lookup but needs the victim's password — not a takeover.",
-    "prompt": "Read CLAUDE.md, ADR-028 (§2 incl. the 2026-11-04 \"same email = ordinally equal\" amendment, §10 external identities) and ADR-030 in knowledge/decisions.md. Fix pattern: rental-api 99274cc and d8527d3.\n\nGoal: a provider email that is collation-equal but not ordinally equal to a stored address never links to, resets, or signs into that account.\n\n1. Trace ExternalAsync → ResolveExternalUserByEmailAsync for a collation-twin provider email against (a) a verified row, (b) a pending row, (c) a blocked row, authoritative and not. Write the outcome down.\n2. Fix: after FindByEmailAsync, compare existing.Email and the normalized provider email ordinally (Trim + ToLowerInvariant). On mismatch the twin must not link/reset. Creating a new user is impossible (CI unique index), so decide with Tigran which existing response the twin gets (recommend 409 `auth.external_link_conflict`); amend ADR-028 §10 / ADR-030.\n3. Tests: unit with the collation-folding proxy (CollationEqualEmailTests pattern) for verified + pending twins, an exact-address guard, and one [SqlServerFact].\n\nRoute 7 (rental-api only, existing error codes) → backend-dev → verifier (full) → reviewer → /security-review on rental-api → qa-engineer verdict."
-  },
-  {
-    "name": "Home page: improve the categories section (design-first)",
-    "priority": "Medium",
-    "labels": [
-      "frontend",
-      "design"
-    ],
-    "desc": "Requested by Tigran on 2026-11-07: improve the categories block on the home page. What exactly to improve is not fixed yet, so the first step is a design stage, not code.\n\nCurrent state (2026-11-07):\n- Section: `Rental-Ui/src/app/features/home/pages/home-page/home-page.component.html` (~L124-168): section header + horizontal carousel with prev/next chevron buttons; 4-item skeleton while loading; empty state when there are none.\n- Tile: `Rental-Ui/src/app/features/home/components/category-tile/`: a button with a coloured media block (`colorHex` from the category, fallback `DEFAULT_CATEGORY_COLOR`) and an icon chip (`iconName`, fallback `DEFAULT_CATEGORY_ICON`, see `shared/utils/category-palette.model.ts`). The label sits inside the card on desktop and in a separate chip below the card on mobile (<=560px).\n- Data: listing-categories store (`selectListingCategories`), mapped in `home-page.component.ts` (~L395). A click calls `onCategorySelect` and opens the catalogue filtered by that category.\n- Specs: `home-page.categories.spec.ts`, `category-tile.component.spec.ts`.\n\nFlow (design first):\n1. Tigran says what is wrong and what he wants.\n2. `ux-designer` writes the Claude Design prompt; Tigran reviews the design.\n3. Approved decisions go to `knowledge/specs/home-categories/design-notes.md`.\n4. Implementation: `frontend-dev` → `verifier` (fast tier), with a before/after screenshot slider for Tigran.\n\nRule 0: if the new design needs category images or per-category listing counts from the API, that is a contract change (route 8). It needs an ADR and Tigran's approval before any code.",
-    "prompt": "TASK: Improve the home-page categories section of DoRent (Angular 21, Rental-Ui). Stage 1 is design only.\nSTEP 1 (main session): ask Tigran, in Russian and in one round, what exactly should change in the categories block: look and feel, carousel vs grid, icons vs photos, mobile layout, anything to add (e.g. listing counts). Screenshot the current block at 1440 and 390 px for reference.\nSTEP 2: give `ux-designer` the goal, Tigran's answers, the current files (`features/home/pages/home-page/home-page.component.html|scss`, `features/home/components/category-tile/*`, `shared/utils/category-palette.model.ts`) and the design tokens. It returns a compact Claude Design prompt for this one section: desktop + mobile, loading/empty states, keyboard focus, a11y.\nSTEP 3: once Tigran approves the design, record the approved decisions in `knowledge/specs/home-categories/design-notes.md`, then route 6 (`frontend-dev` → `verifier` fast tier, matched before/after screenshots shown to Tigran as a slider Artifact). If the design needs new API data (images, counts), stop: Rule 0, route 8.\nCONSTRAINTS: no code before the design is approved; category colour and icon keep coming from the API; the tile stays a real button with a single accessible name; keep existing specs green or update them deliberately.\nDONE_WHEN: approved design implemented, verifier PASS on desktop and mobile, before/after shown to Tigran, card moved to Ready to Deploy with 'How to verify on production' and 'Осталось до Done' sections."
-  },
-  {
     "name": "Chat: Web Push notifications for new messages",
     "priority": "High",
     "labels": [
@@ -543,36 +482,6 @@
     "prompt": "Implement Web Push for new chat messages in DoRent (rental-api + Rental-Ui). Start in plan mode. Rule 0: each item below is a structural decision; bring it to Tigran with options and a recommendation, then record the ADRs before any code: (1) push library on .NET (e.g. WebPush / Lib.Net.Http.WebPush) and VAPID key handling in production (platform-engineer owns secrets/compose); (2) service worker approach in Angular (@angular/service-worker vs a minimal custom SW) and a PWA manifest so iOS home-screen installs can receive push; (3) data model: a PushSubscription entity per user/device (endpoint, p256dh, auth, created/last-used), removal on 404/410 from the push service, cleanup on logout/account deletion (ADR-056); (4) API contract: subscribe/unsubscribe endpoints (contract-guardian syncs api-contract.ts); (5) when to push vs the email channel from #17 (e.g. push immediately, email only if still unread after the delay) and quiet hours (ADR-048); (6) permission-prompt UX — ask after a meaningful action (first message sent), never on page load; ux-designer writes the design prompt first. Payload holds no message text beyond a short localized preview decided by Tigran (privacy). Route per CLAUDE.md Delegation route 8 (schema + contract + both repos). Verify on a real Android Chrome and desktop browser; dorent.am is behind Cloudflare Access (ADR-009), so check the SW scope and push click-through work there."
   },
   {
-    "name": "17a Chat notifications: backend — unread-message email, preference, unsubscribe",
-    "priority": "Medium",
-    "labels": [
-      "chat",
-      "backend"
-    ],
-    "desc": "Parent: #17 Chat: push notifications for new messages. ADR-059 (+ amendment 2026-11-07), design approved: knowledge/specs/chat-notifications/ (design-notes.md, design/).\n\nBackend slice: User.ChatEmailsEnabled + ConversationParticipant chat-email-sent marker (one migration), GET/PUT preference API, signed-token unsubscribe API (anonymous POST), periodic BackgroundService (15 min unread, one email per unread streak, quiet hours 22:00-09:00 Yerevan, renter/owner only, verified/not blocked/not deleted), email template en/hy/ru via Resend (ADR-029 D5 amended).",
-    "prompt": "Implement card 17a per ADR-059 and knowledge/specs/chat-notifications/design-notes.md (email = item 6). Route 8: plan gate with exact routes/DTOs approved by Tigran -> backend-dev -> contract-guardian -> verifier -> reviewer. Migration is APPROVAL_REQUIRED. qa-engineer verdict before close."
-  },
-  {
-    "name": "17b Chat notifications: UI — Settings Notifications sheet + unsubscribe page",
-    "priority": "Medium",
-    "labels": [
-      "chat",
-      "frontend"
-    ],
-    "desc": "Parent: #17 Chat: push notifications for new messages. ADR-059 (+ amendment 2026-11-07), design approved: knowledge/specs/chat-notifications/ (design-notes.md, design/).\n\nUI slice: Settings \"Notifications\" row (replaces Coming soon) opening a bottom sheet / 560px dialog like Language; Row A email switch (saves on change, Saved/failed line, reverts on failure); Row B browser-notification states (ask/on/blocked/unsupported, reuses the 17c service); public unsubscribe page with all states. Depends on 17a contract and 17c browser-notification service.",
-    "prompt": "Implement card 17b per knowledge/specs/chat-notifications/design-notes.md items 1-3, 5, 7 and design/ files. Route 6 (frontend-dev -> verifier fast, before/after screenshots slider for Tigran). Needs 17a merged (api-contract.ts synced) and the 17c browser-notification service. qa-engineer verdict before close."
-  },
-  {
-    "name": "17c Chat notifications: UI — browser notification while tab hidden + chat soft prompt",
-    "priority": "Medium",
-    "labels": [
-      "chat",
-      "frontend"
-    ],
-    "desc": "Parent: #17 Chat: push notifications for new messages. ADR-059 (+ amendment 2026-11-07), design approved: knowledge/specs/chat-notifications/ (design-notes.md, design/).\n\nUI-only slice: browser Notification for a new incoming chat message (SignalR) while the DoRent tab is hidden — sender + start of message, click focuses the tab and opens the chat; one-time per-device soft prompt in the thread after the first sent message (Turn on -> native permission dialog; Not now). No backend change.",
-    "prompt": "Implement card 17c per ADR-059 point 8 (amended) and design-notes.md item 4, design/nt-pages.jsx NPrompt. Route 6: frontend-dev -> verifier (fast). qa-engineer verdict before close."
-  },
-  {
     "name": "Notifications: retire the notification feed — all notifications live in the chat",
     "priority": "Medium",
     "labels": [
@@ -582,5 +491,16 @@
     ],
     "desc": "Product direction from Tigran (2026-11-07, while shaping #17 / ADR-059): there will be no separate notification feed; every notification lives in the chat.\n\nToday: NotificationsController feed + badge poller (Rental-Ui features/notifications), NotificationEmitter writes Notification rows (ADR-025 copy, ADR-048 quiet hours/outbox design), chat system lines already exist for every rental status change (ADR-001, ADR-051). ADR-059 already emails on unread chat system lines.\n\nOpen (Rule 0, Tigran decides, ADR): which notification kinds have no chat home yet (listing approved/rejected → moderation notes ADR-025 amendment? pickup area changed, account-level events); where non-rental notifications go (a DoRent system conversation?); migration of existing Notification rows; removal of the feed UI/badge and endpoints (contract change); effect on ADR-025, ADR-048 outbox, ADR-056.",
     "prompt": "Shape the retirement of the DoRent notification feed (all notifications move into the chat). Start in plan mode, read ADR-001, ADR-025, ADR-048, ADR-051, ADR-056, ADR-059. Inventory every NotificationKind and emitter call and map each to its chat home (existing system line, moderation note, or a new system conversation). Present Tigran the options with blast radius (schema, contract, UI, data migration) and a recommendation; record the ADR only after his approval. Then route per CLAUDE.md Delegation (route 8)."
+  },
+  {
+    "name": "Chat: a message is marked Seen while the recipient tab is hidden",
+    "priority": "Medium",
+    "labels": [
+      "chat",
+      "frontend",
+      "bug"
+    ],
+    "desc": "Found 2026-11-07 during prod verification of #255 (17c browser notifications) on dorent.am: qa-owner had the rental chat open in a background Edge window; every message qa-renter sent was immediately shown as \"Seen\" in Chrome although nobody looked at it.\n\nCause: Rental-Ui src/app/features/chat/store/chat.effects.ts realtimeMessageReceived$ (~line 300) dispatches markConversationRead whenever the conversation is the active one and the message is not mine. It does not check document.visibilityState. BrowserNotificationService.isPageHidden() (features/notifications/services/browser-notification.service.ts:67) already exists.\n\nEffects: false \"Seen\" for the sender; the message counts as read, so the 17a unread-message email (ADR-059) is never sent for it; the 17c OS notification is fine (it does check pageHidden). Likely pre-existing since chat phase 1, made visible by notifications.",
+    "prompt": "Read CLAUDE.md, ADR-059 and the chat read-receipt ADR(s) in knowledge/decisions.md (grep \"read\" / \"Seen\").\n\nGoal: a received message is marked read only while the user can actually see it.\n\n1. In chat.effects.ts realtimeMessageReceived$, dispatch markConversationRead for the open conversation only when the page is visible (reuse BrowserNotificationService.isPageHidden(); no second visibility helper).\n2. When the tab becomes visible again (visibilitychange) with a conversation open that has unread incoming messages, mark it read once.\n3. Opening a conversation keeps marking it read as today.\n4. Unit specs for both effects (hidden -> no markRead; visible again -> one markRead). Mocked e2e if the existing chat suite makes it cheap.\n\nIf this changes a recorded read-receipt decision, stop and bring it to Tigran (Rule 0).\n\nRoute 6 (Rental-Ui only, no contract change): frontend-dev -> verifier (fast). Confirmed bug -> qa-engineer verdict before closing. Prod check: two browsers, recipient chat open in a background tab -> sender sees no Seen until the recipient returns to the tab; the unread email (17a) still arrives after 15 min."
   }
 ]
