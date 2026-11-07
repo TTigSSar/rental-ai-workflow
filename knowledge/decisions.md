@@ -1689,6 +1689,11 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 1. **Pending closes without `BookingEvent`.** ADR-046 v1.1 (`BookingEvent`, booking version) is not implemented yet, so the deletion closes each Pending booking with a status compare-and-set (`UPDATE … WHERE Status = Pending`, as the expiry sweep does); a row count ≠ 1 rolls back → 409 `account.state_changed`. No schema is added. When ADR-046 lands, the close step appends events and the blocking set is re-mapped (spec Behaviour 6).
 2. **No owner notification for a cancelled outgoing request.** Same as today's renter cancel: no `NotificationKind` for "cancelled" exists; the owner sees the chat system line. Incoming requests rejected by the deletion notify the renter with the existing `Declined` kind and actor "Deleted user".
 
+**Amended 2026-11-07 (Tigran), during AD-3:**
+1. **Deleted-user flags are flat fields named after the role.** These are `ownerIsDeleted`, `renterIsDeleted`, `counterpartyIsDeleted`, `counterpartIsDeleted`, `senderIsDeleted`, `reviewerIsDeleted`, `reporterIsDeleted` and `memberIsDeleted`. A nested user object gets `isDeleted` instead. For a deleted user, the name fields are `""` and the avatar is null.
+2. **The notification feed gets no `isDeleted` flag.** The actor is a stored text snapshot with no actor id, and the only notification that can have a deleted actor is the "Declined" one sent when a deleted owner's pending request is closed. Its stored name is already "Deleted user" in the recipient's language and its avatar is null. The UI shows it as is, without the muted placeholder icon. Rejected: an `ActorIsDeleted` column, because it needs a migration for one rare row, and matching on the name text, because it can be spoofed.
+3. **Chat send to a deleted participant returns 409 `chat.participant_deleted`.** It is checked after `chat.not_participant` and before `chat.conversation_closed`. Reading the chat still works.
+
 ## ADR-057: Demand analytics are daily booking-request counters per Yerevan day × district × category — no identity, no FKs, kept forever, admin-only
 Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: data model, API/contract, privacy boundary (Trello P3-3) | Plan: rental-api@d743959
 **Decision:**
