@@ -656,3 +656,17 @@ Date: 2026-11-07 | Area: frontend (overlays, `/profile/*`), verification
 **Cause:** `.profile-page` ran `animation: profile-fade-in … both`. Fill-mode `both` kept a computed `transform` on the element after the animation, so it became the containing block for `position: fixed` descendants. The first fix made the keyframes opacity-only, but a filled opacity animation still keeps a stacking context, which trapped the sheet's z-index under the root-level nav. Unit tests and the stubbed e2e assert no geometry.
 **Fix:** Rental-Ui 8be6776, then 1939ea1: the sheet host is moved to `document.body` while open and the page animation uses fill-mode `backwards`. qa-engineer added `e2e/profile-notifications-sheet.spec.ts` (849da9b), which asserts the sheet's bottom edge and `elementFromPoint`; it fails on the old code.
 **Rule:** a `position: fixed` overlay must not live under an ancestor with a transform, filter, filled animation or its own stacking context. Portal it to `body`, or check the ancestors. The verifier checks every new overlay live at 375 px with `elementFromPoint` at its bottom edge.
+
+## M-083: Account deletion's open-rental check could be beaten by a concurrent approve
+Date: 2026-11-07 | Area: `rental-api` bookings + account deletion (ADR-056), found by `reviewer` in AD-6 after the feature was already on main
+**Symptom:** a renter's deletion and the owner's approve of that renter's Pending booking, run together, could end in "deleted renter + Approved booking", the state ADR-056 forbids. Tests covered only create-vs-delete.
+**Cause:** approve saved a tracked entity (`UPDATE … WHERE Id`), with no status predicate and no lock on the renter row. It could land between the deletion's open-rental check and its Pending close, or overwrite the deletion's Cancelled with Approved.
+**Fix:** rental-api 622be8a + 972076c. Approve is a compare-and-set on `Status = Pending` (lost CAS → `booking.not_pending`); the deletion re-checks open bookings after closing Pendings (→ `account.state_changed`); booking create also refuses a deleted renter. Deterministic SQL Server tests for both orderings.
+**Rule:** any status transition that another flow also guards (deletion, expiry, cancel) is a CAS on the expected status, never a tracked SaveChanges. When a new flow adds an invariant over bookings, list every existing writer of `Booking.Status` and test each against it.
+
+## M-084: A real-stack spec stayed broken for a whole feature because the earlier cards never ran the real tier
+Date: 2026-11-07 | Area: `Rental-Ui/e2e/real/language-persistence.spec.ts`, found by `qa-engineer` in AD-6
+**Symptom:** the spec failed on missing `.profile-page__menu-*` selectors. AD-1 (d8be986) had moved the language row into `/profile/settings`, and AD-1…AD-5 were merged with the spec red.
+**Cause:** the per-card verification ran unit and mocked e2e only; the real-stack suite (`--project=real`) ran first at the feature's close-out.
+**Fix:** Rental-Ui 3b924b6 retargets the spec at the Settings page with the same assertions.
+**Rule:** a UI change that moves or renames a screen runs `grep -r` for its old selectors across `e2e/` (mocked and real) in the same card, and the pre-merge full tier includes `--project=real` for every PR into main, not only at a feature's last card.

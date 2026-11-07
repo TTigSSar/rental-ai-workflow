@@ -696,7 +696,7 @@ Date: 2026-10-08 | Status: accepted | Area: external service, infrastructure | A
    - **No retry and no `Idempotency-Key`.** Without retries there is nothing to deduplicate. If retries are ever added, check Resend's idempotency semantics against its official documentation first.
    - Never throw. A failed send is logged at Error with the provider status and without the token; the user recovers through resend.
 4. **Content.** en/hy/ru by `PreferredLanguage` with an English fallback (ADR-025 precedent), HTML plus a text part.
-5. **Scope (D5).** Only verification email goes through Resend. Listing approved/rejected emails stay on the logging path until a separate decision enables them.
+5. **Scope (D5).** Only verification email goes through Resend. Listing approved/rejected emails stay on the logging path until a separate decision enables them. *(Widened by ADR-056 §4: the "account deleted" confirmation email also goes through Resend.)*
 6. **Domain.**
    - Sender `no-reply@dorent.am`.
    - DNS: Resend's DKIM (`resend._domainkey`), SPF and MX on `send.dorent.am`, DMARC starting at `p=none`.
@@ -922,6 +922,7 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
           - `auth/me/*`.
         - Deliberately **not** blocked: marking chat messages and notifications as read. It is harmless.
         - A matrix HTTP test pins this list.
+      - A second exception: `DELETE /api/auth/me` (account deletion) is allowed for a blocked user (ADR-056, amendment 5).
       - The one deliberate exception is the moderation-chat appeal (`isAppealingSuspendedMember` in `ChatService.SendMessageAsync` and `SendImageMessageAsync`).
       - A global per-request block check (`OnTokenValidated`) was rejected. It would break that appeal, which works only with a pre-block JWT because login rejects blocked users, and it costs a DB hit per request.
     - Embedded WebViews may refuse Google OAuth; password sign-in remains.
@@ -1672,7 +1673,7 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 3. Meeting-point coordinates (`ChatMessage.MeetingPoint*`, ADR-053) in messages the user sent are erased; the message row stays.
 4. `Report.TargetLabel` / `ModerationLogEntry.TargetLabel` that name the user are replaced with "Deleted user".
 5. Login, Google sign-in and password reset refuse a row with `DeletedAt` explicitly, not by relying on the scrubbed email and empty hash.
-6. Creating a booking on a listing whose owner is deleted is refused (closes the race with a deletion in progress).
+6. Creating a booking on a listing whose owner is deleted is refused (closes the race with a deletion in progress). The same holds when the renter is deleted (amended 2026-11-07, Tigran, AD-6 review): no Pending booking may survive a deleted party. The refusal reuses the existing create-conflict error; the renter's session is already revoked.
 7. Order and locking: conditional `UPDATE Users … WHERE DeletedAt IS NULL` first (Users before other tables, as ADR-029), then the open-rental check, then Pending closes by CAS (a lost CAS rolls back → 409). A repeat after commit gets 401 (token revoked).
 8. The 409 `account.has_open_rentals` carries `openRentals: [{bookingId, listingTitle, startDate, endDate, role}]` as a ProblemDetails extension (ADR-045).
 9. A 401 on the delete call (e.g. a retry after a dropped connection) makes the UI log out locally and show "You've been signed out. If your account was deleted, we've sent you an email."
@@ -1699,6 +1700,8 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 **Amended 2026-11-07 (Tigran), AD-7:**
 1. **Admin report rows gain `targetIsDeleted`.** It is true only for a `User`-target report whose user has `DeletedAt` set. Listing and Message targets always get false: they offer no target contact. A Listing label is the listing title. A Message label is "Chat with {name}", which deletion rewrites to "Chat with Deleted user". The UI shows the "Deleted user" placeholder and hides the "Message {target}" contact. The stored `TargetLabel` is already "Deleted user" (§1 of the 2026-11-04 amendment, item 4).
 2. **`ChatRealtimeMessage` gets no `senderIsDeleted`.** A deleted user's token is revoked, so they can never send a realtime message, and the flag would always be false. In an already-open chat, the counterpart's old name stays visible until the page reloads. A send in that chat returns 409 `chat.participant_deleted`, which reloads the conversation (AD-5). Rejected: a "participant deleted" realtime event, too much machinery for a rare, self-healing case.
+
+**Amended 2026-11-07 (Tigran), AD-6 review:** Chat image attachments count as messages and stay visible to the counterparty after deletion; they are part of the rental's history. Rejected: erasing a deleted user's attachments (faces may appear in photos, but the history would lose evidence for disputes).
 
 ## ADR-057: Demand analytics are daily booking-request counters per Yerevan day × district × category — no identity, no FKs, kept forever, admin-only
 Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: data model, API/contract, privacy boundary (Trello P3-3) | Plan: rental-api@d743959
