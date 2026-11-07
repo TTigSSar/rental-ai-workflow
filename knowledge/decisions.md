@@ -1772,3 +1772,9 @@ Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: notifications, 
 - **Age cap: only lines from the last 2 days count.** A line older than 48 h never triggers an email. This guards the first production sweep (old finished rentals would otherwise all be emailed at once) and long-dormant chats. Rejected: a data step in the already-approved migration that marks every existing participant as emailed.
 - **Production gate.** The dispatcher does nothing while email is not operational (ADR-028 §9: `IEmailVerificationSettings.IsOperational`), so links never point at localhost and streaks are not consumed by the logging sender.
 - **Browser notification for moderator notes.** §8 now also covers moderation-thread messages (`moderationNote`) from the moderator; system lines still do not raise one.
+
+## ADR-060: Chat "Seen" receipt shows on the viewer's OWN sent messages only (standard read receipt)
+Date: 2026-07-08 (recorded 2026-11-07; originally ADR-002 on the unmerged `feature/chat-realtime` branch, lost when knowledge was rewritten on `dev`) | Status: accepted
+**Decision:** "Seen" renders under the current user's own last sent message once the counterpart has read it. Received messages carry no read indicator. Server side, `Seen` is computed only for the viewer's own messages (`counterpartLastReadAt >= message.CreatedAt`); marking received messages read still advances the reader's cursor and clears unread. Product-confirmed by Tigran.
+**Why:** the standard read-receipt model (WhatsApp/Telegram) and the approved chat design.
+**Rejected:** a read indicator on received messages — non-standard and reads as "the app tells me I read this". Recorded so own-only Seen is not "fixed" later.
