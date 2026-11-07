@@ -1700,6 +1700,8 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 1. **Admin report rows gain `targetIsDeleted`.** It is true only for a `User`-target report whose user has `DeletedAt` set. Listing and Message targets always get false: they offer no target contact. A Listing label is the listing title. A Message label is "Chat with {name}", which deletion rewrites to "Chat with Deleted user". The UI shows the "Deleted user" placeholder and hides the "Message {target}" contact. The stored `TargetLabel` is already "Deleted user" (§1 of the 2026-11-04 amendment, item 4).
 2. **`ChatRealtimeMessage` gets no `senderIsDeleted`.** A deleted user's token is revoked, so they can never send a realtime message, and the flag would always be false. In an already-open chat, the counterpart's old name stays visible until the page reloads. A send in that chat returns 409 `chat.participant_deleted`, which reloads the conversation (AD-5). Rejected: a "participant deleted" realtime event, too much machinery for a rare, self-healing case.
 
+**Amended 2026-11-07 (Tigran), AD-6 review:** Chat image attachments count as messages and stay visible to the counterparty after deletion; they are part of the rental's history. Rejected: erasing a deleted user's attachments (faces may appear in photos, but the history would lose evidence for disputes).
+
 ## ADR-057: Demand analytics are daily booking-request counters per Yerevan day × district × category — no identity, no FKs, kept forever, admin-only
 Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: data model, API/contract, privacy boundary (Trello P3-3) | Plan: rental-api@d743959
 **Decision:**
