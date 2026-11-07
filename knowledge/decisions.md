@@ -396,6 +396,8 @@ Date: 2026-09-25 | Status: accepted | Area: auth surface (backend + Angular) | T
 
 **Known residue, accepted:** accounts created before this cap may still hold passwords longer than 72 bytes. They log in normally, and the `auth.password_unchanged` false positive can still reach them if they try to change only the tail. Nothing migrates them; the next password they set is capped.
 
+**Amended 2026-11-07 (Tigran) — the form moves inline into Settings; the dedicated page goes.** The change-password form now opens as an expandable row on `/profile/settings`, the same pattern as the Language row: current, new and confirm password. On success the row collapses and the global `<p-toast>` confirms. The "Password updated" success screen is gone. `/profile/settings/password` stays only as a redirect to `/profile/settings`. The "Frontend shape" paragraph above is superseded for the route and the success state. Component-local state, the error mapping and the cross-field validator stay as written. **Rejected:** dropping the route outright, because old links would 404.
+
 ## ADR-022: CI provisions a real SQL Server, and "ready" means a login that answered
 Date: 2026-09-27 | Status: accepted | Decided by: Tigran | Area: build & delivery topology (`rental-api`)
 
