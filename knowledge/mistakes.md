@@ -684,3 +684,10 @@ Date: 2026-11-07 | Area: delivery process (orchestrator → `platform-engineer`)
 **Cause:** a background subagent receives messages only from the orchestrator, so a human ack can never reach it first-hand. Earlier releases had no human-ack gate, so this path was never exercised.
 **Fix:** Tigran ran `claude --agent platform-engineer` in a separate terminal, typed the ack himself, and the release deployed (smoke 23/0/0, invariant PASS).
 **Rule:** if a release has a human-ack gate (irreversible migration, restore-only rollback), do not spawn `platform-engineer` as a background subagent for the deploy step. A background agent may prepare the plan and the evidence. For the gated execution, hand Tigran a ready prompt containing the ack line, to run in his own `claude --agent platform-engineer` session.
+
+## M-087: A "hide X for deleted users" fix covered only the component it grepped for and missed a second render path of the same data
+Date: 2026-11-08 | Area: `Rental-Ui` admin messages-page, Trello #260
+**Symptom:** round 1 (c0eb542) hid the "Pending ID" pill for deleted members in the list rows and was deployed; the prod check still showed "Renter · Pending ID" in the open thread header.
+**Cause:** the orchestrator's hand-off scoped the fix by grepping the pill component (`app-admin-user-status-pill`), and the card said "line ~644 is the header" without checking. The header rendered the same `memberStatus` as plain text through `roleStatusText()`. Unit specs and the verifier walk covered only the list rows, so nothing opened a deleted member's thread.
+**Fix:** Rental-Ui 71f0461 — `roleStatusText()` returns the role only for a deleted member; spec added. Deployed in PR #41.
+**Rule:** when hiding or replacing a value for a state (deleted, blocked), grep the **data field** (`memberStatus`, `status`) across the page's template and component, not the component that happens to show it, and list every render path in the hand-off. The verifier walk opens the detail view (thread, dialog) as well as the list.
