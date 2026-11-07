@@ -483,6 +483,8 @@ Date: 2026-10-06 | Status: accepted | Decided by: Tigran | Area: data model, API
 2. **Migration step 3 is now genuinely idempotent, and the reason is narrower than first believed.** A re-run previously re-NULLed `PublicLatitude`/`PublicLongitude`/`DistrictId`, discarding what the startup runner had computed; step 3 now carries a state guard that skips any row already in the state it would write. This matters because ADR-023 has an operator hand-running this SQL against a restored backup, which is exactly where `__EFMigrationsHistory` is not there to prevent a second `Up`. The earlier analysis also claimed a re-run could elect a different `ROW_NUMBER` winner and change `City`/`Country`; that was **tested in isolation and does not fire** — step 3's first run already gives every listing of an owner the winner's City/Country, so whichever row a second run elects carries the same values. The state guard is the whole fix. The CTE was additionally re-sourced from the undo tape, which changes no observable outcome and is kept only because `l.[Latitude] IS NOT NULL` becomes vacuous after the first run — a filter that no longer filters is a trap for the next reader. **One first-run consequence, stated rather than buried:** the row step 2 took the home point from keeps its existing derived pair instead of having it NULLed and recomputed; the values were derived from the coordinates that row still has, so they are consistent. One row per owner. **Residual, not fixed:** on a second run, listings created *after* the migration join the winner pool, so a legacy owner whose run-1 winner carried a non-Armenian `Country` could see the catalogue flip to "Armenia" after they publish again. Policy for legacy non-Armenian rows is undecided; production holds none today.
 3. **`Country` was removed from `UpdateListingRequest`.** It was the last writable location field, and nothing reconciles it, so `{"country":"Neverland"}` stuck forever beside a Yerevan district and pin. The removal also exposed a testing asymmetry worth recording: the create payload had a guard asserting the five derived fields are absent, the update payload had none — which is why `Country` survived three separate removal waves and was caught only by review. The update guard now mirrors the create one.
 
+**Amended 2026-11-06 (Tigran, Trello P3-2): there is no public handover point.** P3-2 asked for an optional public meeting spot per owner (`LocationKind.HandoverPoint`). It is closed as covered by ADR-053: an owner who does not want to meet at home sends an "other" meeting point in the booking chat, visible only to that booking's participants. Rejected alternative (b) above stands. `LocationKind.HandoverPoint` stays an unused enum value and must not be written. Rejected: (a) one public handover point per owner on the listing and booking pages, which adds a migration and a contract change for something the chat meeting point already covers; (b) a point per listing, which is alternative (b) above.
+
 ## ADR-025: Notification copy is rendered server-side, at emit time, in the recipient's language
 Date: 2026-10-06 | Status: accepted | Decided by: Tigran | Area: API/contract, i18n
 
@@ -596,6 +598,7 @@ Date: 2026-10-08 | Status: accepted | Area: auth surface, data model, API contra
    - During the 60 s cooldown the response is instead **429 `auth.verification_cooldown`** with `Retry-After`, and nothing changes.
    - A Google/Apple sign-in on a pending email resets the account: `PasswordHash = ""`, profile from the provider, tokens revoked, account verified.
    - A blocked pending account is never replaced.
+   - **"The same email" means ordinally equal after `Trim` + `ToLowerInvariant`**, not collation-equal (amended 2026-11-04, Tigran; rental-api d8527d3, Trello o9Nl4QwN). SQL Server CI_AS matches lookalikes (`ß`=`ss`, fullwidth = ASCII), so a register whose lookup hits a row with a different stored address gets the ordinary **409 `auth.duplicate_email`**: nothing replaced, nothing sent, the victim's cooldown and budget untouched. Rejected: a silent 201 with nothing sent — hides the collision, but the person waits for a mail that never comes.
 3. **Verification needs both the token and the password (D1).**
    - Request: `POST /api/auth/verify-email { token, password }`.
    - A wrong password returns **401 `auth.invalid_credentials`** and does not consume the token.
@@ -639,6 +642,7 @@ Date: 2026-10-08 | Status: accepted | Area: auth surface, data model, API contra
     - Apple auto-links only for `privaterelay.appleid.com`, `icloud.com`, `me.com` and `mac.com`; otherwise **409 `auth.external_link_conflict`**.
     - Apple's `email_verified` is accepted as a bool or a string; otherwise the email is ignored.
     - Linking is still keyed by the provider `sub` first.
+    - **An email match means ordinally equal** (per §2; §10 amended 2026-11-06, Tigran; rental-api 565e382, Trello 2v9z3e1h). A provider email that only collation-matches a stored address (a Workspace on `busineß.am` with `hd` = that domain) gets **409 `auth.external_link_conflict`** before the blocked check: nothing linked, reset or signed in, and the twin cannot learn the victim is blocked. Rejected: a new dedicated error code (new copy in three languages for no gain).
 11. **Schema.**
     - New table `UserTokens`:
 
@@ -1622,6 +1626,7 @@ Date: 2026-10-28 | Status: accepted (Tigran, 2026-10-28) | Area: API/contract, e
 **Amended 2026-10-29 (Tigran) — per-user daily limit:** each user gets at most **50 AI searches per day**, reset at Yerevan midnight (ADR-048), configuration value `AiSearch:PerUserPerDay`. It is counted from the user's `AiSearchLog` rows of the day with outcome `ok` or `ranking_failed` (searches that reached the model); page 2+, rejected and fallback searches do not count. No new table or migration. The 51st search returns **HTTP 429 `ai_search.daily_limit`** (ADR-045) and no search runs; the UI says the AI limit for today is used up and the normal search still works. `GET /ai-search/status` stays anonymous and global. Why: with the $1 global budget one user at 5/min could spend it alone in ~7.5 h; 50 × ≈$0.00044 ≈ $0.02 per user per day. Rejected: a dollar cap per user (opaque to users), and per-user `available: false` in the status endpoint (makes the anonymous endpoint user-aware).
 **Amended 2026-10-30 (Tigran) — rank at most 10, short ids (supersedes "at most 20" above):** the LLM re-ranks at most **10 candidates**; the rest of the page keeps the catalogue order after them. Candidates go to the model numbered 1–10 and the model returns those numbers; the server maps them back to listing ids (unknown numbers dropped, missing ones appended, as before). Why: production logs showed ranking dominated by output length — 20 GUIDs ≈ 400–680 output tokens, 3.7–7.9 s per call on direct OpenAI, one 8 s timeout — so a search took 6–12 s. Rejected: raising the timeout (slower searches), returning to OpenRouter in production (contradicts the provider amendment).
 **Amended 2026-10-30 (Tigran) — paid calls count, blocked users refused (security review, supersedes "fallback searches do not count" in the per-user amendment):** every model call is logged with its cost, including aborted, timed-out and unusable ones (a pessimistic estimate when the provider reports no usage), so the $1/day budget sees it. The 50/day per-user cap counts every search **that cost money** (`CostUsd > 0`), whatever its outcome; free fallbacks (no key, budget spent, provider unreachable before billing) still do not count. A blocked user gets **403 `auth.user_blocked`** (the existing code) before any model call. `GET /ai-search/status` caches its answer for 30 s. Why: a user could abort searches mid-flight to spend the shared budget without touching their own cap, and a blocked account could keep searching until its token expired. Rejected: leaving aborted calls out of the cap (one user can switch AI off for everyone), a new `ai_search.user_blocked` code (the UI already maps `auth.user_blocked`).
+**Amended 2026-11-06 (Tigran) — reasoning effort `none`, configurable (supersedes "reasoning effort `low`" in the provider amendment):** parse and rank both run at reasoning effort **`none`**. The effort is a configuration value, `AiSearch:ReasoningEffort`, so a rollback needs no release. Why: production searches took a median of 4.4–4.7 s. Almost all of it was the two model calls of 2.3–3.1 s each; network, TLS and the DB took under 0.1 s. Most completion tokens were reasoning: rank returned ≈150 tokens for an answer of ≈30. Three searches hit the 4096-token cap and fell back. Re-test (`tools/ai-search-eval`, same 40 queries, production rank protocol): `none` scored 40/40 like `low`, used 77/31 completion tokens instead of 145/151 (parse/rank), and ranked the same top result. Rejected: `minimal`, which on the test produced as many reasoning tokens as `low`; and merging parse and rank into one call or running them in parallel, which changes the flow and is not needed yet.
 
 ## ADR-055: Issued JWTs are revoked by a per-user `TokenVersion` checked on every authenticated request
 Date: 2026-11-02 | Status: accepted | Area: auth surface, data model, API contract, realtime | Approved by Tigran 2026-10-31 (mechanism, own session, rollout, hub) and 2026-11-02 (DB failure 503, hub expiry) | Trello hbprFg3q
@@ -1658,3 +1663,74 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 **Rejected:** hard delete (breaks counterparties' history); 30-day grace period (Hangfire job, MVP not worth it); email-link confirmation (more work for little gain over a password); public no-login deletion form (spam surface); auto-cancelling `Approved`/`Active` rentals (a toy can be left with the renter and no owner in the system).
 
 **Related:** ADR-029, ADR-030 §11, ADR-046, ADR-055.
+
+**Amended 2026-11-04 (Tigran), after the architecture review — gaps closed, inside the same decision:**
+1. `AiSearchLog.UserId` is set to NULL for the user's rows (metrics stay).
+2. The user's listings also lose `AddressLine`, `Latitude/Longitude`, `PublicLatitude/Longitude`; their `ListingLocationBeforeHomePoint` rows are deleted.
+3. Meeting-point coordinates (`ChatMessage.MeetingPoint*`, ADR-053) in messages the user sent are erased; the message row stays.
+4. `Report.TargetLabel` / `ModerationLogEntry.TargetLabel` that name the user are replaced with "Deleted user".
+5. Login, Google sign-in and password reset refuse a row with `DeletedAt` explicitly, not by relying on the scrubbed email and empty hash.
+6. Creating a booking on a listing whose owner is deleted is refused (closes the race with a deletion in progress).
+7. Order and locking: conditional `UPDATE Users … WHERE DeletedAt IS NULL` first (Users before other tables, as ADR-029), then the open-rental check, then Pending closes by CAS (a lost CAS rolls back → 409). A repeat after commit gets 401 (token revoked).
+8. The 409 `account.has_open_rentals` carries `openRentals: [{bookingId, listingTitle, startDate, endDate, role}]` as a ProblemDetails extension (ADR-045).
+9. A 401 on the delete call (e.g. a retry after a dropped connection) makes the UI log out locally and show "You've been signed out. If your account was deleted, we've sent you an email."
+10. Dependency: the blocking set (`Approved`, `Active`) is written against today's `BookingStatus`; if ADR-046 v1.1 states land first, it is re-mapped to the v1.1 equivalents of "confirmed" and "ongoing".
+
+**Amended 2026-11-06 (Tigran), after the design review (ux-designer + reviewer):**
+1. **Notifications naming the user are deleted.** Notification copy is rendered at emit time with the actor's first name inside `Title`/`Body` (ADR-025), so scrubbing `ActorName` is not enough. Deletion removes other recipients' non-system notifications on entities (bookings, conversations, reviews) the user was a party to. Replaces the "scrub actor snapshots" part of §1.
+2. **409 `openRentals` items gain `listingImageUrl` (nullable)** — the blocked list shows the toy image.
+3. **A lost CAS while closing Pending returns 409 `account.state_changed`** (UI: "try again"), not `account.has_open_rentals`.
+4. **After deletion:** the chat with a deleted user is read-only; a review of a completed rental may still be left; no notifications or emails are created for a deleted recipient. Anonymous review endpoints show the author as "Deleted user"; owner/renter review summaries for a deleted user's id return 404, like the public profile.
+5. **Blocked users:** `DELETE /api/auth/me` is exempt from the ADR-030 §11 blocked-write 403 (amends ADR-030 §11). After their token expires a blocked user cannot sign in and so cannot self-delete — **accepted risk** (Tigran), no support-mail or login carve-out for now.
+6. **Copy:** reviews are described as public ("stay public as 'Deleted user'"); the network-error text is neutral ("Something went wrong. Please try again.") for every failure without a definite answer.
+7. **UI rules:** admins do not see the Delete account row; while the DELETE is in flight Cancel/close/Escape are disabled; a meeting-point message with erased coordinates reads "Location removed"; the blocked-state CTA leads to My rentals or Incoming requests by the roles listed; "Deleted user" (never a link) appears on every surface that shows a person, with server-side hy/ru/en strings for notification copy.
+
+**Amended 2026-11-06 (Tigran), during AD-2 implementation:**
+1. **Pending closes without `BookingEvent`.** ADR-046 v1.1 (`BookingEvent`, booking version) is not implemented yet, so the deletion closes each Pending booking with a status compare-and-set (`UPDATE … WHERE Status = Pending`, as the expiry sweep does); a row count ≠ 1 rolls back → 409 `account.state_changed`. No schema is added. When ADR-046 lands, the close step appends events and the blocking set is re-mapped (spec Behaviour 6).
+2. **No owner notification for a cancelled outgoing request.** Same as today's renter cancel: no `NotificationKind` for "cancelled" exists; the owner sees the chat system line. Incoming requests rejected by the deletion notify the renter with the existing `Declined` kind and actor "Deleted user".
+
+## ADR-057: Demand analytics are daily booking-request counters per Yerevan day × district × category — no identity, no FKs, kept forever, admin-only
+Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: data model, API/contract, privacy boundary (Trello P3-3) | Plan: rental-api@d743959
+**Decision:**
+- **The signal:** one persisted booking request counts as one signal. It is counted on the Yerevan day of `CreatedAt` (fixed UTC+4, ADR-048), under the listing's district and category **at request time**. Status changes never touch the count, and a refused create is never counted. Searches and views are not counted.
+- **Storage:** table `DemandDailyCounts(Day, DistrictId?, CategoryId, BookingRequests)` with a clustered unique key on `(Day, DistrictId, CategoryId)`. It uses `HasFilter(null)`, so a missing district is one cell. The table has **no identity columns and no FKs**, so history survives the hard delete of a category. A category deleted with reassign keeps its old counts.
+- **Write:** an atomic EF `ExecuteUpdate +1`, or `Add` when the row does not exist yet. It runs in the same Serializable transaction as the booking insert, as the last step. District and category are passed in by the service. There is no retry and no idempotency key: a duplicate submit is already refused as `booking.overlap`.
+- **Backfill:** a one-time step in the migration uses the **current** listing metadata. **`Down` loses history irreversibly**, so the rollback is a backup restore (ADR-058).
+- **Retention:** kept forever.
+- **API:** `GET /api/admin/demand?from&to`, admins only.
+  - `from` and `to` are inclusive Yerevan days, and the parameters must come together or not at all.
+  - The default range is the last 30 days and the maximum is 366 days.
+  - Errors return 400 `admin.demand_range_invalid`.
+  - The response contains `DateOnly` days and is ordered by day, district (nulls first), then category.
+- **Privacy:** the data is **pseudonymous aggregate, not anonymous**. A small cell can point to one person. Small cells are accepted while only admins read the data, because admins already see `Bookings`. Any other consumer (AI, owners, exports) gets coarsened and/or suppressed data under a new ADR, never the raw daily cells.
+**Why:** a counter store keeps analytics away from raw events and renter identity, and request-time snapshots do not drift when owners move.
+**Known:**
+- The SQL Server concurrency gate proves the counter cell is safe. It does not cover the booking-create path, which already deadlocked (1205) before this ADR when creates on **different** listings ran at the same time (Trello #246). There are two causes:
+  - a never-booked listing shares its index gap with its neighbours;
+  - on a small `Bookings` table, which is the production case today, the overlap check scans the clustered index and range-locks every key.
+
+  The race test therefore pre-seeds rows and fillers so that it isolates the counter cell. The counter itself is not affected, but it adds a little to how long the locks are held.
+- Dev-seed bookings may fall into NULL-district cells.
+**Rejected:** (a) aggregating at query time from `Bookings`, which reads raw events joined to renters and drifts after moves; (b) counting searches or views, which is noisy; (c) a geohash grid, too fine for so few bookings; (d) FKs, because Restrict blocks category deletes and Cascade erases history; (e) a best-effort increment after commit, which loses counts; (f) a raw T-SQL upsert, which breaks the SQLite test host; (g) differential privacy or thresholds in v1.
+
+## ADR-058: A release whose migration backfills persistent data from a live write path stops the old API first, takes a stop-time backup, and is never rolled back code-only
+Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: delivery topology (first used by ADR-057)
+**Decision:** when a migration creates or backfills persistent data that the new code then keeps in step with a live write path, the release runs in this order:
+1. Rehearse per ADR-023, including the data invariant.
+2. Tag the current images.
+3. **Stop the old `api` explicitly.**
+4. Take a **stop-time backup** and verify it.
+5. Run `up -d`, so the new API migrates and backfills before it listens.
+6. Run `smoke.sh` and the release-specific invariant check.
+
+The invariant check is a documented deploy step, and `smoke.sh` stays unchanged (ADR-010 is untouched). **A code-only rollback is prohibited** whenever old code would write without keeping the new data in step. The rollback is a restore of the stop-time backup over the live DB, followed by the old images, using the documented procedure.
+
+That procedure covers the bookings made after the deploy:
+- extract them before the restore;
+- re-enter them with their statuses and timestamps, without duplicates;
+- handle their notifications;
+- tell the affected renters and owners.
+
+**Why:** the old process and the backfill must never overlap, and old code must never write after the backfill. Either one leaves the data permanently inconsistent.
+**Accepted:** about 1–4 minutes of booking-write downtime per such release, provided the rehearsal validates the procedure.
+**Rejected:** (a) a 503 maintenance flag, because the old image does not have it; (b) a self-healing recount in the app, which cannot reproduce snapshot data and is not zero-gap; (c) automated dual-write or new infrastructure.

@@ -41,5 +41,13 @@
   { "id": 37, "lang": "hy", "q": "lego duplo 2 tarekani hamar", "age": 24, "cat": ["building-blocks"] },
   { "id": 38, "lang": "ru", "q": "nastolka dlya semi na vyhodnye", "cat": ["board-games"], "dates": true },
   { "id": 39, "lang": "hy", "q": "baby gym 4 amsakan max 2000", "age": 4, "cat": ["baby-toys"], "price": 2000 },
-  { "id": 40, "lang": "ru", "q": "mashinka na akkumulyatore dlya rebenka v Malatii", "cat": ["ride-on-toys"], "dist": ["malatia-sebastia"] }
+  { "id": 40, "lang": "ru", "q": "mashinka na akkumulyatore dlya rebenka v Malatii", "cat": ["ride-on-toys"], "dist": ["malatia-sebastia"] },
+  { "id": 41, "lang": "hy", "q": "հեծանիվ 4 տարեկանի համար", "age": 48, "cat": ["ride-on-toys", "outdoor-toys"] },
+  { "id": 42, "lang": "hy", "q": "խաղալիք 8 ամսական երեխայի համար", "age": 8, "cat": ["baby-toys", "educational-toys"] },
+  { "id": 43, "lang": "hy", "q": "մեքենա 2 տարեկան տղայիս համար", "age": 24, "cat": ["ride-on-toys"] },
+  { "id": 44, "lang": "hy", "q": "կոնստրուկտոր 7 տարեկանի", "age": 84, "cat": ["building-blocks"] },
+  { "id": 45, "lang": "hy", "q": "հեծանիվ երեք տարեկանի համար", "age": 36, "cat": ["ride-on-toys", "outdoor-toys"] },
+  { "id": 46, "lang": "hy", "q": "սկուտեր 5 տարեկանի համար", "age": 60, "cat": ["ride-on-toys", "outdoor-toys"] },
+  { "id": 47, "lang": "hy", "q": "տիկնիկ 3 տարեկան աղջկաս համար", "age": 36, "cat": ["pretend-play"] },
+  { "id": 48, "lang": "hy", "q": "զարգացնող խաղալիք մեկ տարեկանի համար", "age": 12, "cat": ["educational-toys", "montessori-toys", "baby-toys"] }
 ]
