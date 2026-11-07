@@ -1,0 +1,25 @@
+/* From "Message Notifications Stage 1.html" (Claude Design export, 2026-11-07) */
+a{color:#C24600;text-decoration:none}a:hover{color:#A83C00}
+.ai{font-family:'Inter','Noto Sans Armenian','Segoe UI',Roboto,sans-serif;color:#1A1B26;-webkit-font-smoothing:antialiased;font-size:16px;line-height:24px}
+.ai :focus-visible,.ai .fv{outline:2px solid #C24600;outline-offset:2px}
+.wm{font-family:'Baloo 2',cursive;font-weight:700;color:#FF6008;line-height:1}
+.ibtn{width:44px;height:44px;flex:none;border-radius:14px;border:0;background:#F4F4F8;color:#1A1B26;display:grid;place-items:center}
+.ibtn.ghost{background:transparent;border-radius:999px}.ibtn.ghost:hover{background:#F4F4F8}
+.btn-p{min-height:48px;padding:12px 24px;border:0;border-radius:999px;background:#C24600;color:#fff;font-size:16px;font-weight:600;line-height:24px;display:inline-flex;align-items:center;justify-content:center;gap:10px;text-align:center}
+.btn-p:hover{background:#A83C00}
+.btn-p.sm{min-height:40px;padding:8px 18px;font-size:14px;line-height:20px}
+.btn-s{min-height:44px;padding:10px 18px;border:1px solid #DDD9D0;border-radius:999px;background:#fff;color:#1A1B26;font-size:14px;font-weight:600;line-height:20px;display:inline-flex;align-items:center;gap:8px;text-align:left}
+.btn-s:hover{background:#F4F4F8}
+.srow{width:100%;min-height:60px;display:flex;align-items:center;gap:12px;padding:10px 16px;background:transparent;border:0;text-align:left;color:#1A1B26}
+button.srow:hover{background:#FAF8F4}
+.srow+.srow{border-top:1px solid #E8E5DE}
+.srow .val{flex:0 1 auto;min-width:0;max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;line-height:20px;color:#6B6A75}
+.nrow{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;min-height:60px}
+.sw{position:relative;flex:none;width:52px;height:44px;margin-top:-5px;padding:0;border:0;border-radius:999px;background:transparent;display:grid;place-items:center}
+.sw-track{position:relative;width:44px;height:26px;border-radius:999px;border:1.5px solid #6F6E7D;background:#fff;display:block}
+.sw-knob{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:999px;background:#6F6E7D}
+.sw.on .sw-track{background:#C24600;border-color:#C24600}.sw.on .sw-knob{left:auto;right:3px;background:#fff}
+.pill-ok{display:inline-flex;align-items:center;gap:6px;min-height:28px;margin-top:3px;padding:2px 12px;border-radius:999px;background:#EDF9F1;border:1px solid rgba(13,125,86,.28);color:#0D7D56;font-size:13px;font-weight:700;line-height:18px;white-space:nowrap}
+.btn-q{min-height:44px;padding:10px 14px;border:0;border-radius:999px;background:transparent;color:#4A4A55;font-size:14px;font-weight:600;line-height:20px}.btn-q:hover{background:#F4F4F8}
+.lnk{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:#C24600;font-size:16px;font-weight:600;align-self:flex-start}.lnk:hover{color:#A83C00;text-decoration:underline}
+.caret{display:inline-block;width:2px;height:20px;background:#C24600;vertical-align:-4px;margin-left:1px}

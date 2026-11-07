@@ -541,5 +541,35 @@
     ],
     "desc": "Follow-up of card #17 (\"Chat: push notifications for new messages\"). Tigran chose (2026-11-07) to ship #17 as A + C: an email when a chat message stays unread, plus a browser system notification while a DoRent tab is open but not focused. Real Web Push (works with the browser closed) was split out into this card.\n\nNothing exists yet: no service worker, no PWA manifest, no push subscriptions. On iOS, Web Push only works from a PWA installed to the home screen (iOS 16.4+), so the manifest and install path are part of the scope.\n\nRelated: ADR-025 (copy in the recipient language), ADR-048 (quiet hours / outbox, Hangfire not installed yet), ADR-009 (dorent.am behind Cloudflare Access), the ADR that #17 writes for the email channel.",
     "prompt": "Implement Web Push for new chat messages in DoRent (rental-api + Rental-Ui). Start in plan mode. Rule 0: each item below is a structural decision; bring it to Tigran with options and a recommendation, then record the ADRs before any code: (1) push library on .NET (e.g. WebPush / Lib.Net.Http.WebPush) and VAPID key handling in production (platform-engineer owns secrets/compose); (2) service worker approach in Angular (@angular/service-worker vs a minimal custom SW) and a PWA manifest so iOS home-screen installs can receive push; (3) data model: a PushSubscription entity per user/device (endpoint, p256dh, auth, created/last-used), removal on 404/410 from the push service, cleanup on logout/account deletion (ADR-056); (4) API contract: subscribe/unsubscribe endpoints (contract-guardian syncs api-contract.ts); (5) when to push vs the email channel from #17 (e.g. push immediately, email only if still unread after the delay) and quiet hours (ADR-048); (6) permission-prompt UX — ask after a meaningful action (first message sent), never on page load; ux-designer writes the design prompt first. Payload holds no message text beyond a short localized preview decided by Tigran (privacy). Route per CLAUDE.md Delegation route 8 (schema + contract + both repos). Verify on a real Android Chrome and desktop browser; dorent.am is behind Cloudflare Access (ADR-009), so check the SW scope and push click-through work there."
+  },
+  {
+    "name": "17a Chat notifications: backend — unread-message email, preference, unsubscribe",
+    "priority": "Medium",
+    "labels": [
+      "chat",
+      "backend"
+    ],
+    "desc": "Parent: #17 Chat: push notifications for new messages. ADR-059 (+ amendment 2026-11-07), design approved: knowledge/specs/chat-notifications/ (design-notes.md, design/).\n\nBackend slice: User.ChatEmailsEnabled + ConversationParticipant chat-email-sent marker (one migration), GET/PUT preference API, signed-token unsubscribe API (anonymous POST), periodic BackgroundService (15 min unread, one email per unread streak, quiet hours 22:00-09:00 Yerevan, renter/owner only, verified/not blocked/not deleted), email template en/hy/ru via Resend (ADR-029 D5 amended).",
+    "prompt": "Implement card 17a per ADR-059 and knowledge/specs/chat-notifications/design-notes.md (email = item 6). Route 8: plan gate with exact routes/DTOs approved by Tigran -> backend-dev -> contract-guardian -> verifier -> reviewer. Migration is APPROVAL_REQUIRED. qa-engineer verdict before close."
+  },
+  {
+    "name": "17b Chat notifications: UI — Settings Notifications sheet + unsubscribe page",
+    "priority": "Medium",
+    "labels": [
+      "chat",
+      "frontend"
+    ],
+    "desc": "Parent: #17 Chat: push notifications for new messages. ADR-059 (+ amendment 2026-11-07), design approved: knowledge/specs/chat-notifications/ (design-notes.md, design/).\n\nUI slice: Settings \"Notifications\" row (replaces Coming soon) opening a bottom sheet / 560px dialog like Language; Row A email switch (saves on change, Saved/failed line, reverts on failure); Row B browser-notification states (ask/on/blocked/unsupported, reuses the 17c service); public unsubscribe page with all states. Depends on 17a contract and 17c browser-notification service.",
+    "prompt": "Implement card 17b per knowledge/specs/chat-notifications/design-notes.md items 1-3, 5, 7 and design/ files. Route 6 (frontend-dev -> verifier fast, before/after screenshots slider for Tigran). Needs 17a merged (api-contract.ts synced) and the 17c browser-notification service. qa-engineer verdict before close."
+  },
+  {
+    "name": "17c Chat notifications: UI — browser notification while tab hidden + chat soft prompt",
+    "priority": "Medium",
+    "labels": [
+      "chat",
+      "frontend"
+    ],
+    "desc": "Parent: #17 Chat: push notifications for new messages. ADR-059 (+ amendment 2026-11-07), design approved: knowledge/specs/chat-notifications/ (design-notes.md, design/).\n\nUI-only slice: browser Notification for a new incoming chat message (SignalR) while the DoRent tab is hidden — sender + start of message, click focuses the tab and opens the chat; one-time per-device soft prompt in the thread after the first sent message (Turn on -> native permission dialog; Not now). No backend change.",
+    "prompt": "Implement card 17c per ADR-059 point 8 (amended) and design-notes.md item 4, design/nt-pages.jsx NPrompt. Route 6: frontend-dev -> verifier (fast). qa-engineer verdict before close."
   }
 ]
