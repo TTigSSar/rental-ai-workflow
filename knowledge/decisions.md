@@ -1739,3 +1739,16 @@ That procedure covers the bookings made after the deploy:
 **Why:** the old process and the backfill must never overlap, and old code must never write after the backfill. Either one leaves the data permanently inconsistent.
 **Accepted:** about 1–4 minutes of booking-write downtime per such release, provided the rehearsal validates the procedure.
 **Rejected:** (a) a 503 maintenance flag, because the old image does not have it; (b) a self-healing recount in the app, which cannot reproduce snapshot data and is not zero-gap; (c) automated dual-write or new infrastructure.
+
+## ADR-059: New chat messages reach an absent user by one delayed email per unread streak, and by a browser notification while a DoRent tab is open but hidden; Web Push is deferred
+Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: notifications, email (amends ADR-029 D5), schema, UI permission | Trello #17
+**Decision:**
+1. **Channels.** (A) email for an unread chat message, (C) a browser `Notification` while a DoRent tab is open but hidden. Real Web Push with the browser closed is a separate card (High).
+2. **Email timing.** An email is sent when the oldest unread message from someone else is older than **15 minutes**. **One email per conversation per unread streak**: the next one only after the recipient has read the conversation (`LastReadAt` > the last email's time) and something new has stayed unread for 15 minutes.
+3. **Quiet hours (ADR-048).** No chat email between 22:00 and 09:00 Yerevan. What is still unread at 09:00 is sent then. A loss-tolerant periodic `BackgroundService` does this (ADR-048 amendment of 2026-10-28), not an outbox, because nothing is lost if one run is missed.
+4. **Content.** Rendered in the recipient's language (ADR-025): who wrote and about which toy, plus a link to the chat. **No message text**, because chat carries addresses and phone numbers (ADR-053).
+5. **Recipients.** Only the renter and the owner of the conversation, with a verified email, not blocked and not deleted (ADR-056). No emails to support participants (ADR-049).
+6. **Opt-out.** A per-user `ChatEmailsEnabled` (default on). It can be turned off with a link in the email that opens a UI page, which POSTs a signed token (a GET would be triggered by mail scanners), and with a toggle in the profile "Notifications" block.
+7. **ADR-029 D5 amended.** The chat emails are live through Resend, under the same delivery semantics (after commit, no retry, never throw).
+8. **Browser notification.** It shows the sender and the start of the message, and a click opens the chat. The text is allowed here because it never leaves the user's own device. The permission is requested **automatically after the user's first sent chat message**, and can also be enabled in the profile block.
+**Rejected:** Web Push now (needs a service worker, VAPID keys and a subscription table, and works on iOS only from an installed PWA); a feed `Notification` per chat message (chat has its own badge); an email per message; message text in the email.
