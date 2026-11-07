@@ -696,7 +696,7 @@ Date: 2026-10-08 | Status: accepted | Area: external service, infrastructure | A
    - **No retry and no `Idempotency-Key`.** Without retries there is nothing to deduplicate. If retries are ever added, check Resend's idempotency semantics against its official documentation first.
    - Never throw. A failed send is logged at Error with the provider status and without the token; the user recovers through resend.
 4. **Content.** en/hy/ru by `PreferredLanguage` with an English fallback (ADR-025 precedent), HTML plus a text part.
-5. **Scope (D5).** Only verification email goes through Resend. Listing approved/rejected emails stay on the logging path until a separate decision enables them.
+5. **Scope (D5).** Only verification email goes through Resend. Listing approved/rejected emails stay on the logging path until a separate decision enables them. *(Widened by ADR-056 §4: the "account deleted" confirmation email also goes through Resend.)*
 6. **Domain.**
    - Sender `no-reply@dorent.am`.
    - DNS: Resend's DKIM (`resend._domainkey`), SPF and MX on `send.dorent.am`, DMARC starting at `p=none`.
@@ -922,6 +922,7 @@ Date: 2026-10-10 | Status: accepted | Area: auth surface, API contract, ADR-028 
           - `auth/me/*`.
         - Deliberately **not** blocked: marking chat messages and notifications as read. It is harmless.
         - A matrix HTTP test pins this list.
+      - A second exception: `DELETE /api/auth/me` (account deletion) is allowed for a blocked user (ADR-056, amendment 5).
       - The one deliberate exception is the moderation-chat appeal (`isAppealingSuspendedMember` in `ChatService.SendMessageAsync` and `SendImageMessageAsync`).
       - A global per-request block check (`OnTokenValidated`) was rejected. It would break that appeal, which works only with a pre-block JWT because login rejects blocked users, and it costs a DB hit per request.
     - Embedded WebViews may refuse Google OAuth; password sign-in remains.
