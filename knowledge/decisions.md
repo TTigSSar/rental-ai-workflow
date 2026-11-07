@@ -396,6 +396,8 @@ Date: 2026-09-25 | Status: accepted | Area: auth surface (backend + Angular) | T
 
 **Known residue, accepted:** accounts created before this cap may still hold passwords longer than 72 bytes. They log in normally, and the `auth.password_unchanged` false positive can still reach them if they try to change only the tail. Nothing migrates them; the next password they set is capped.
 
+**Amended 2026-11-07 (Tigran) — the form moves inline into Settings; the dedicated page goes.** The change-password form now opens as an expandable row on `/profile/settings`, the same pattern as the Language row: current, new and confirm password. On success the row collapses and the global `<p-toast>` confirms. The "Password updated" success screen is gone. `/profile/settings/password` stays only as a redirect to `/profile/settings`. The "Frontend shape" paragraph above is superseded for the route and the success state. Component-local state, the error mapping and the cross-field validator stay as written. **Rejected:** dropping the route outright, because old links would 404.
+
 ## ADR-022: CI provisions a real SQL Server, and "ready" means a login that answered
 Date: 2026-09-27 | Status: accepted | Decided by: Tigran | Area: build & delivery topology (`rental-api`)
 
@@ -1693,6 +1695,10 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 1. **Deleted-user flags are flat fields named after the role.** These are `ownerIsDeleted`, `renterIsDeleted`, `counterpartyIsDeleted`, `counterpartIsDeleted`, `senderIsDeleted`, `reviewerIsDeleted`, `reporterIsDeleted` and `memberIsDeleted`. A nested user object gets `isDeleted` instead. For a deleted user, the name fields are `""` and the avatar is null.
 2. **The notification feed gets no `isDeleted` flag.** The actor is a stored text snapshot with no actor id, and the only notification that can have a deleted actor is the "Declined" one sent when a deleted owner's pending request is closed. Its stored name is already "Deleted user" in the recipient's language and its avatar is null. The UI shows it as is, without the muted placeholder icon. Rejected: an `ActorIsDeleted` column, because it needs a migration for one rare row, and matching on the name text, because it can be spoofed.
 3. **Chat send to a deleted participant returns 409 `chat.participant_deleted`.** It is checked after `chat.not_participant` and before `chat.conversation_closed`. Reading the chat still works.
+
+**Amended 2026-11-07 (Tigran), AD-7:**
+1. **Admin report rows gain `targetIsDeleted`.** It is true only for a `User`-target report whose user has `DeletedAt` set. Listing and Message targets always get false: they offer no target contact. A Listing label is the listing title. A Message label is "Chat with {name}", which deletion rewrites to "Chat with Deleted user". The UI shows the "Deleted user" placeholder and hides the "Message {target}" contact. The stored `TargetLabel` is already "Deleted user" (§1 of the 2026-11-04 amendment, item 4).
+2. **`ChatRealtimeMessage` gets no `senderIsDeleted`.** A deleted user's token is revoked, so they can never send a realtime message, and the flag would always be false. In an already-open chat, the counterpart's old name stays visible until the page reloads. A send in that chat returns 409 `chat.participant_deleted`, which reloads the conversation (AD-5). Rejected: a "participant deleted" realtime event, too much machinery for a rare, self-healing case.
 
 ## ADR-057: Demand analytics are daily booking-request counters per Yerevan day × district × category — no identity, no FKs, kept forever, admin-only
 Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: data model, API/contract, privacy boundary (Trello P3-3) | Plan: rental-api@d743959
