@@ -1672,7 +1672,7 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 3. Meeting-point coordinates (`ChatMessage.MeetingPoint*`, ADR-053) in messages the user sent are erased; the message row stays.
 4. `Report.TargetLabel` / `ModerationLogEntry.TargetLabel` that name the user are replaced with "Deleted user".
 5. Login, Google sign-in and password reset refuse a row with `DeletedAt` explicitly, not by relying on the scrubbed email and empty hash.
-6. Creating a booking on a listing whose owner is deleted is refused (closes the race with a deletion in progress).
+6. Creating a booking on a listing whose owner is deleted is refused (closes the race with a deletion in progress). The same holds when the renter is deleted (amended 2026-11-07, Tigran, AD-6 review): no Pending booking may survive a deleted party. The refusal reuses the existing create-conflict error; the renter's session is already revoked.
 7. Order and locking: conditional `UPDATE Users … WHERE DeletedAt IS NULL` first (Users before other tables, as ADR-029), then the open-rental check, then Pending closes by CAS (a lost CAS rolls back → 409). A repeat after commit gets 401 (token revoked).
 8. The 409 `account.has_open_rentals` carries `openRentals: [{bookingId, listingTitle, startDate, endDate, role}]` as a ProblemDetails extension (ADR-045).
 9. A 401 on the delete call (e.g. a retry after a dropped connection) makes the UI log out locally and show "You've been signed out. If your account was deleted, we've sent you an email."
