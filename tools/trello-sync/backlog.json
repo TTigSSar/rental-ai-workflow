@@ -571,5 +571,16 @@
     ],
     "desc": "Parent: #17 Chat: push notifications for new messages. ADR-059 (+ amendment 2026-11-07), design approved: knowledge/specs/chat-notifications/ (design-notes.md, design/).\n\nUI-only slice: browser Notification for a new incoming chat message (SignalR) while the DoRent tab is hidden — sender + start of message, click focuses the tab and opens the chat; one-time per-device soft prompt in the thread after the first sent message (Turn on -> native permission dialog; Not now). No backend change.",
     "prompt": "Implement card 17c per ADR-059 point 8 (amended) and design-notes.md item 4, design/nt-pages.jsx NPrompt. Route 6: frontend-dev -> verifier (fast). qa-engineer verdict before close."
+  },
+  {
+    "name": "Notifications: retire the notification feed — all notifications live in the chat",
+    "priority": "Medium",
+    "labels": [
+      "chat",
+      "backend",
+      "frontend"
+    ],
+    "desc": "Product direction from Tigran (2026-11-07, while shaping #17 / ADR-059): there will be no separate notification feed; every notification lives in the chat.\n\nToday: NotificationsController feed + badge poller (Rental-Ui features/notifications), NotificationEmitter writes Notification rows (ADR-025 copy, ADR-048 quiet hours/outbox design), chat system lines already exist for every rental status change (ADR-001, ADR-051). ADR-059 already emails on unread chat system lines.\n\nOpen (Rule 0, Tigran decides, ADR): which notification kinds have no chat home yet (listing approved/rejected → moderation notes ADR-025 amendment? pickup area changed, account-level events); where non-rental notifications go (a DoRent system conversation?); migration of existing Notification rows; removal of the feed UI/badge and endpoints (contract change); effect on ADR-025, ADR-048 outbox, ADR-056.",
+    "prompt": "Shape the retirement of the DoRent notification feed (all notifications move into the chat). Start in plan mode, read ADR-001, ADR-025, ADR-048, ADR-051, ADR-056, ADR-059. Inventory every NotificationKind and emitter call and map each to its chat home (existing system line, moderation note, or a new system conversation). Present Tigran the options with blast radius (schema, contract, UI, data migration) and a recommendation; record the ADR only after his approval. Then route per CLAUDE.md Delegation (route 8)."
   }
 ]
