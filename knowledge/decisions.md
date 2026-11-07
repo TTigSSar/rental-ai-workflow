@@ -1696,6 +1696,10 @@ Date: 2026-11-04 | Status: accepted | Area: data model, API contract, auth and p
 2. **The notification feed gets no `isDeleted` flag.** The actor is a stored text snapshot with no actor id, and the only notification that can have a deleted actor is the "Declined" one sent when a deleted owner's pending request is closed. Its stored name is already "Deleted user" in the recipient's language and its avatar is null. The UI shows it as is, without the muted placeholder icon. Rejected: an `ActorIsDeleted` column, because it needs a migration for one rare row, and matching on the name text, because it can be spoofed.
 3. **Chat send to a deleted participant returns 409 `chat.participant_deleted`.** It is checked after `chat.not_participant` and before `chat.conversation_closed`. Reading the chat still works.
 
+**Amended 2026-11-07 (Tigran), AD-7:**
+1. **Admin report rows gain `targetIsDeleted`.** It is true only for a `User`-target report whose user has `DeletedAt` set. Listing and Message targets always get false: they offer no target contact, and their label is the listing title or the message text. The UI shows the "Deleted user" placeholder and hides the "Message {target}" contact. The stored `TargetLabel` is already "Deleted user" (§1 of the 2026-11-04 amendment, item 4).
+2. **`ChatRealtimeMessage` gets no `senderIsDeleted`.** A deleted user's token is revoked, so they can never send a realtime message, and the flag would always be false. In an already-open chat, the counterpart's old name stays visible until the page reloads. A send in that chat returns 409 `chat.participant_deleted`, which reloads the conversation (AD-5). Rejected: a "participant deleted" realtime event, too much machinery for a rare, self-healing case.
+
 ## ADR-057: Demand analytics are daily booking-request counters per Yerevan day × district × category — no identity, no FKs, kept forever, admin-only
 Date: 2026-11-07 | Status: accepted | Decided by: Tigran | Area: data model, API/contract, privacy boundary (Trello P3-3) | Plan: rental-api@d743959
 **Decision:**
