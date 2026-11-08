@@ -1780,3 +1780,11 @@ Date: 2026-07-08 (recorded 2026-11-07; originally ADR-002 on the unmerged `featu
 **Decision:** "Seen" renders under the current user's own last sent message once the counterpart has read it. Received messages carry no read indicator. Server side, `Seen` is computed only for the viewer's own messages (`counterpartLastReadAt >= message.CreatedAt`); marking received messages read still advances the reader's cursor and clears unread. Product-confirmed by Tigran.
 **Why:** the standard read-receipt model (WhatsApp/Telegram) and the approved chat design.
 **Rejected:** a read indicator on received messages — non-standard and reads as "the app tells me I read this". Recorded so own-only Seen is not "fixed" later.
+
+## ADR-061: Every mobile bottom sheet closes with a swipe down; the show-password toggle is keyboard-reachable
+Date: 2026-11-08 | Status: accepted | Decided by: Tigran | Area: UI, a11y (cross-cutting)
+**Decision:**
+1. **Swipe down closes a bottom sheet.** Every sheet shown as a bottom sheet (under 961 px) can be dragged down by its handle or header and closes when released past a threshold; otherwise it snaps back. It follows the same close path as X / Esc / backdrop, so a sheet that blocks closing (e.g. while saving) also blocks the swipe. This is a rule for all future sheets, not only Settings. Desktop dialogs are unaffected.
+2. **The show/hide password toggle in `UiInput` is in the Tab order** (no `tabindex="-1"`), with an accessible name that says show or hide.
+**Why:** Tigran, 2026-11-08: swipe-down is the expected mobile gesture; a toggle that Tab skips cannot be used from the keyboard.
+**Rollout:** the Settings sheets get it with the Settings-sheets card; the app's other existing bottom sheets are migrated by a separate card.
