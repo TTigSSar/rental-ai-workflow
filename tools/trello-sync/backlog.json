@@ -522,5 +522,15 @@
     ],
     "desc": "Goal (Tigran, 2026-11-08): on /profile/settings the Password and Language rows open the same container as Notifications: bottom sheet under 961 px, 560 px centred dialog above.\n\n- Password: Current / New / Confirm, Cancel + Save; on success the sheet closes and the global toast says \"Password updated\". The success page is gone; /profile/settings/password redirects to /profile/settings.\n- Language: list of 3 languages, tap applies and closes; no toast.\n- Google-managed accounts: Password row stays inactive.\n- Sheet shell shared by the Settings rows only (other app sheets not migrated).\n\nDecisions: ADR-021 amendment 2026-11-08 (knowledge/decisions.md). Design: Claude Design \"Password Language Stage 2.html\"; export + notes in knowledge/specs/settings-sheets/. Route: UI only, no API change: frontend-dev -> verifier (before/after screenshots).",
     "prompt": "Read CLAUDE.md, the ADR-021 amendment of 2026-11-08 in knowledge/decisions.md and knowledge/specs/settings-sheets/ (design-notes.md + design/). Implement the Password and Language sheets on /profile/settings in Rental-Ui, reusing the Notifications sheet container (features/profile/components/notifications-sheet) via a shell scoped to Settings. Route 6: frontend-dev -> verifier fast tier with before/after screenshots at 390 and 1280."
+  },
+  {
+    "name": "Swipe down closes every mobile bottom sheet (ADR-061 rollout)",
+    "priority": "High",
+    "labels": [
+      "frontend",
+      "design"
+    ],
+    "desc": "Tigran 2026-11-08, ADR-061: every sheet shown as a bottom sheet under 961 px closes with a swipe down on its handle/header (threshold, otherwise snaps back), through the same close path as X / Esc / backdrop; a sheet that blocks closing (e.g. while saving) also blocks the swipe. Desktop dialogs unaffected.\n\nThe Settings sheets (features/profile/components/settings-sheet) got it with the card \"Settings: Password & Language open in the Settings sheet\" - reuse that implementation. This card migrates the remaining bottom sheets, e.g. admin category-edit-sheet, reject-sheet, listings filters, delete-account dialog, phone-step and any other component rendering a mobile bottom sheet (grep for sheet / handle / bottom: 0).",
+    "prompt": "Read CLAUDE.md, ADR-061 in knowledge/decisions.md and the swipe-down implementation in Rental-Ui/src/app/features/profile/components/settings-sheet. Inventory every Rental-Ui component that renders a bottom sheet under 961 px (grep sheet, __handle, position: fixed + bottom: 0) and list them. Then add swipe-down-to-close to each, preferably by extracting the gesture from settings-sheet into a shared directive in shared/ui (structural: confirm with Tigran first per Rule 0). Respect each sheet blocking close while busy. Route 6: frontend-dev -> verifier (390 px walk of each sheet, unit specs for the gesture). Before/after not needed (behaviour only)."
   }
 ]
