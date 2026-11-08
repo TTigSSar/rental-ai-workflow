@@ -691,3 +691,17 @@ Date: 2026-11-08 | Area: `Rental-Ui` admin messages-page, Trello #260
 **Cause:** the orchestrator's hand-off scoped the fix by grepping the pill component (`app-admin-user-status-pill`), and the card said "line ~644 is the header" without checking. The header rendered the same `memberStatus` as plain text through `roleStatusText()`. Unit specs and the verifier walk covered only the list rows, so nothing opened a deleted member's thread.
 **Fix:** Rental-Ui 71f0461 — `roleStatusText()` returns the role only for a deleted member; spec added. Deployed in PR #41.
 **Rule:** when hiding or replacing a value for a state (deleted, blocked), grep the **data field** (`memberStatus`, `status`) across the page's template and component, not the component that happens to show it, and list every render path in the hand-off. The verifier walk opens the detail view (thread, dialog) as well as the list.
+
+## M-088: A full-page Playwright screenshot silently drops touch/pointer emulation, so later shots in the same context look like a desktop
+Date: 2026-11-08 | Area: verification screenshots (Playwright), Trello #251
+**Symptom:** the before/after capture at 390 px (`isMobile`, `hasTouch`) showed the categories carousel arrows, which must be hidden on touch. A DOM probe in a fresh context said `display:none`, and 768 px (also touch) showed no arrows. The verifier could not explain it and flagged a possible app bug.
+**Cause:** `page.screenshot({ fullPage: true })` resets Playwright's device-metrics override in Chromium. After it, `(hover:hover)` and `(pointer:fine)` match, so every later screenshot in that context renders the pointer layout. Only the 390 run took a full-page shot first. The orchestrator's hand-off spec also left out the desktop grid gap (12 px), which cost one extra fix round.
+**Fix:** the capture script takes the full-page shot last. Rental-Ui 2b94a84 set the gap.
+**Rule:** in a touch-emulated Playwright context, take any `fullPage` screenshot last, or in its own context. Verify media-query-driven UI with `matchMedia` in the same context before trusting a screenshot. When materialising a design for `frontend-dev`, copy every layout value of each layout, including the grid gaps, not only the values that differ from today.
+
+## M-089: A `(keydown.enter)` bound on a component host also caught Enter from a button inside it
+Date: 2026-11-08 | Area: Angular forms, a11y (Rental-Ui Settings password sheet, ADR-061)
+**Symptom:** after the `UiInput` show/hide eye was put in the Tab order, Enter on the eye did not toggle visibility; it moved focus to the next field, and on the Confirm field it submitted the form. Mouse click and Space worked. Caught by the verifier before ship (but after 339b63d had already been merged to main).
+**Cause:** the password sheet bound `(keydown.enter)="onEnter($event, n)"` on `<app-ui-input>`. The keydown bubbled up from the inner eye button; `onEnter` called `preventDefault()`, cancelling the button's native Enter activation, then focused the next field or submitted.
+**Fix:** Rental-Ui 063eb9d — `onEnter` returns unless `event.target` is an `HTMLInputElement`; e2e regression in `profile-security.spec.ts` (33f42a7) presses a real Enter on the eye.
+**Rule:** a key handler on a component host must check `event.target` before acting (or bind it on the native input). When a change makes a nested control focusable, walk Enter and Space on it in a real browser — a unit test's synthetic keydown never triggers native button activation.

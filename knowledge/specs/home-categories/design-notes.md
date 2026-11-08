@@ -14,8 +14,14 @@ Card: Trello #251. Design: Claude Design project `df24299b-1299-4804-8a0a-548400
 8. No new API data: no counts, photos or localized names (localization is card #263).
 9. Where the scroller is used above mobile width (the intermediate range), prev/next arrows appear **only for pointer devices** (`@media (hover:hover)`): 44 px, disabled at the start/end of the track, focus ring distinct from hover (Tigran, 2026-11-08). Touch keeps swipe only; the ≥1024 grid has no arrows.
 
+10. Responsive rule (`Home Categories A Responsive.html`, approved by Tigran with the implementation plan, 2026-11-08). Minimum label area 138 px:
+    - < 640: scroller, 2 rows, 2 full columns + 44 px peek, gutter 18.
+    - 640–767: scroller, 3 columns + peek, gutter 40. 768–1023: scroller, 4 columns + peek, gutter 40. Scroller tile width = `(100% − gutter − n×8 − 44) / n`.
+    - 1024–1279: grid, 5 columns, **compact tile** (mobile anatomy: icon on top, no disc), gutter 70.
+    - ≥ 1280: grid, standard tile, 5 columns; 6 columns for 11+ only from a 1508 px viewport (supersedes "6 columns for 11+" in item 1).
+    - Arrows: scroller range only, `(hover:hover) and (pointer:fine)`.
+
 ## Open / not accepted
 
-- Intermediate widths (640–1023 and 1024–1279): not designed yet — extension prompt requested 2026-11-08. Orchestrator's proposal pending: grid at ≥1024, 2-row scroller below.
 - Per-label `lang` attribute from the design: not implementable (the API has no name language) — the page language applies.
 - Heading size and section spacing come from the existing `app-ui-section-header` and home section rhythm, not the one-off values in the spec (19/800, 32/40).
