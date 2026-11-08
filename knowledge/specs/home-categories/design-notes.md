@@ -12,6 +12,7 @@ Card: Trello #251. Design: Claude Design project `df24299b-1299-4804-8a0a-548400
 6. Interaction: hover only under `@media (hover:hover)`; visible pressed state on touch (as on toy cards); keyboard focus ring per ADR-031 and a focused tile scrolls fully into view in the mobile scroller; motion off under `prefers-reduced-motion`.
 7. Loading skeleton has the same tile size and grid as the loaded state.
 8. No new API data: no counts, photos or localized names (localization is card #263).
+9. Where the scroller is used above mobile width (the intermediate range), prev/next arrows appear **only for pointer devices** (`@media (hover:hover)`): 44 px, disabled at the start/end of the track, focus ring distinct from hover (Tigran, 2026-11-08). Touch keeps swipe only; the ≥1024 grid has no arrows.
 
 ## Open / not accepted
 
