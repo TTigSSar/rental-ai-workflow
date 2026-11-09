@@ -705,3 +705,10 @@ Date: 2026-11-08 | Area: Angular forms, a11y (Rental-Ui Settings password sheet,
 **Cause:** the password sheet bound `(keydown.enter)="onEnter($event, n)"` on `<app-ui-input>`. The keydown bubbled up from the inner eye button; `onEnter` called `preventDefault()`, cancelling the button's native Enter activation, then focused the next field or submitted.
 **Fix:** Rental-Ui 063eb9d — `onEnter` returns unless `event.target` is an `HTMLInputElement`; e2e regression in `profile-security.spec.ts` (33f42a7) presses a real Enter on the eye.
 **Rule:** a key handler on a component host must check `event.target` before acting (or bind it on the native input). When a change makes a nested control focusable, walk Enter and Space on it in a real browser — a unit test's synthetic keydown never triggers native button activation.
+
+## M-090: A hard-coded "5.0 (0)" shipped as the no-reviews state on every listing card
+Date: 2026-11-09 | Area: UI claims (ADR-014), Rental-Ui listing card
+**Symptom:** a design audit of Home found "★ 5.0 (0)" on every card without reviews, on Home and in the catalogue; the screen reader said "No reviews yet" while the screen said 5.0.
+**Cause:** the `rating == null` branch of `listing-card.component.html` rendered `{{ 5 | number }}` and `(0)`. It arrived inside an unrelated commit (a552bc6 "feature: notification"), so no review looked at it as a claims change, and no spec covered the null branch.
+**Fix:** Rental-Ui 76db5b7 — the null branch shows `reviews.summary.noReviews` ("Отзывов пока нет"), no star or number; unit spec covers both branches. QA verdict: regression test not justified (the unit spec fails if a constant returns).
+**Rule:** an empty-data branch renders an honest empty state, never a plausible constant (ADR-014). When a diff touches a template's empty/else branch, check what it claims; keep claim-bearing changes out of unrelated commits.
