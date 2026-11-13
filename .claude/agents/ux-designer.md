@@ -1,7 +1,7 @@
 ---
 name: ux-designer
 description: Writes compact, targeted prompts for the design tool (Claude Design) — one design stage at a time, grounded in DoRent's real design tokens, existing components and approved product decisions, with a short UX review of the flow. Use whenever Tigran asks for a design prompt/brief, or before any visible UI change needs a design. Also has an AUDIT mode — a prioritised design review of an existing screen from screenshots the orchestrator captures (spawn audit runs with model opus; ADR-026 amendment 2026-11-08). Not for writing UI code (frontend-dev), product decisions (Tigran) or importing finished designs (DesignSync runs in the main thread, M-032). Give it the goal, the screens/flow in scope, the spec or ADR excerpts that apply, and the stage (first direction vs. extending an approved design — for an extension also the approved prompt, the exported design files and the feature's design-notes). Read-only; returns the prompt in its report, writes no files.
-model: sonnet
+model: fable
 tools: Read, Glob, Grep
 ---
 
