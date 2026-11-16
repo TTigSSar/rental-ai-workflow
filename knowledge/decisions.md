@@ -1817,6 +1817,13 @@ Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend Home +
 3. The card's price suffix follows the listing's `priceUnit` (ADR-047), not a fixed "per day".
 **Why:** the design's card shows "City, District" and "★ 4.8 (12)"; without the data, every toy would claim "no reviews yet" (ADR-014: the backend is the source of truth for claims). Restyling the shared card would redesign three other pages without a design. Tigran, 2026-11-16 (Trello #268).
 **Rejected:** UI-only (city only, no rating), which misstates reviewed toys; restyling the shared card now.
+**Amendment (Tigran, 2026-11-17, Trello #271): one shared toy card. Supersedes §1.** The Browse Redesign Stage 1 design renders the same `ToyCard` as Home, so a design now exists for the other pages.
+- `app-listing-card` is rebuilt to that card. It is used by Home rows, `/listings`, favorites and both profile pages.
+- `home-toy-card` (and its skeleton) is deleted, along with the dead `featured-listing-tile`.
+- Variants are CSS/viewport only: image 0.83 of the width with a "View" pill on desktop; 0.86 with no pill on mobile. The parent sets the width (the Home carousel, the Browse 3-column grid).
+- Owner ("Your toy") or booking status shows as one pill over the photo, top-left; the owner pill wins.
+- Distance (only once a radius is picked, ADR-024) is appended to the location line.
+- §2 and §3 stand. `District` is now also filled on the catalogue, favorites and profile listings (ADR-066).
 
 ## ADR-065: A listing's handover and minimum rental always show on its page; a missing value reads as the create-wizard default
 Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend listing details + dev seed
@@ -1825,3 +1832,28 @@ Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend listin
 2. The dev seed gives every seeded listing delivery options and a minimum rental (capped by its shortest seeded booking) and backfills only null values.
 **Why:** seeded and legacy listings had neither field, so the rows vanished and the map went full-width; renters could not see how to get the toy. Tigran, 2026-11-16.
 **Rejected:** hiding the rows when empty (previous behaviour); seed-only (legacy prod listings would still show nothing).
+
+## ADR-066: Browse filters v2: multi-select, condition, facet counts and server-side sort
+Date: 2026-11-17 | Status: accepted | Decided by: Tigran | Area: API contract (`GET /api/listings`, `/map-pins`, new `/facets`) + frontend `/listings`
+**Decision:**
+1. **Multi-select filters.**
+   - Category becomes multi-select: `categoryIds` is a repeated key; legacy `categoryId` stays as an alias.
+   - Child's age becomes multi-select: several ranges, matched with OR on overlap, capped at 5.
+   - A new `conditions` filter uses the ADR-042 enum (New / LikeNew / Good / Fair). Legacy stored values are normalised (Excellent→LikeNew, Used→Fair). Capped at 4.
+   - Map pins take the same filters.
+2. **Facet counts.** `GET /api/listings/facets` takes the same filters and returns:
+   - per-category and per-district counts, each computed with every other active filter but not its own dimension;
+   - the price-per-day min/max.
+
+   It counts Approved listings only and is public, rate-limited like the catalogue.
+3. **Server-side sort.** `sort` takes `newest` (default) | `price_asc` | `price_desc` | `rating_desc` | `nearest`.
+   - `nearest` is valid only with an origin (Haversine on public coordinates, ADR-008); without one the API returns 400 and the UI disables the option.
+   - `rating_desc` puts listings without a rating last.
+   - Ties break on newest. AI mode keeps its own relevance order (ADR-054).
+4. The UI writes the new filters and `sort` to the URL. Old links with `categoryId`/`ageGroup` keep working.
+
+**Why:** the Browse Redesign Stage 1 design is a multi-select sidebar with counts, a condition filter and a real sort. The old client-side sort only reordered the loaded page. Tigran chose the full scope, 2026-11-16 (Trello #271).
+**Rejected:**
+- UI-only, which keeps single-select with no counts and the client sort.
+- Facet counts that ignore the active filters, which mislead once anything is selected.
+- "Nearest" without an origin, which would need geolocation on load (ADR-015).
