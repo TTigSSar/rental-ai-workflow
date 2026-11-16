@@ -1817,3 +1817,11 @@ Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend Home +
 3. The card's price suffix follows the listing's `priceUnit` (ADR-047), not a fixed "per day".
 **Why:** the design's card shows "City, District" and "★ 4.8 (12)"; without the data, every toy would claim "no reviews yet" (ADR-014: the backend is the source of truth for claims). Restyling the shared card would redesign three other pages without a design. Tigran, 2026-11-16 (Trello #268).
 **Rejected:** UI-only (city only, no rating), which misstates reviewed toys; restyling the shared card now.
+
+## ADR-065: A listing's handover and minimum rental always show on its page; a missing value reads as the create-wizard default
+Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend listing details + dev seed
+**Decision:**
+1. The details page always renders the "Handover" and "Minimum rental" rows beside the map. Missing delivery types display as Pickup; a missing or non-positive `minRentalDays` displays as 1 day — the same defaults the create wizard sends. Display only: nothing is written back, and booking enforcement (ADR-043) still reads the stored value.
+2. The dev seed gives every seeded listing delivery options and a minimum rental (capped by its shortest seeded booking) and backfills only null values.
+**Why:** seeded and legacy listings had neither field, so the rows vanished and the map went full-width; renters could not see how to get the toy. Tigran, 2026-11-16.
+**Rejected:** hiding the rows when empty (previous behaviour); seed-only (legacy prod listings would still show nothing).
