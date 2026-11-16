@@ -504,56 +504,6 @@
     "prompt": "Read CLAUDE.md, ADR-059 and the chat read-receipt ADR(s) in knowledge/decisions.md (grep \"read\" / \"Seen\").\n\nGoal: a received message is marked read only while the user can actually see it.\n\n1. In chat.effects.ts realtimeMessageReceived$, dispatch markConversationRead for the open conversation only when the page is visible (reuse BrowserNotificationService.isPageHidden(); no second visibility helper).\n2. When the tab becomes visible again (visibilitychange) with a conversation open that has unread incoming messages, mark it read once.\n3. Opening a conversation keeps marking it read as today.\n4. Unit specs for both effects (hidden -> no markRead; visible again -> one markRead). Mocked e2e if the existing chat suite makes it cheap.\n\nIf this changes a recorded read-receipt decision, stop and bring it to Tigran (Rule 0).\n\nRoute 6 (Rental-Ui only, no contract change): frontend-dev -> verifier (fast). Confirmed bug -> qa-engineer verdict before closing. Prod check: two browsers, recipient chat open in a background tab -> sender sees no Seen until the recipient returns to the tab; the unread email (17a) still arrives after 15 min."
   },
   {
-    "name": "Admin Messages: a deleted member shows a misleading \"Pending ID\" status pill",
-    "priority": "Low",
-    "labels": [
-      "admin",
-      "frontend"
-    ],
-    "desc": "Found 2026-11-07 during prod verification of #239 (AD-5, step 5). In /admin/messages a member who deleted their account is shown as \"Deleted user\" (correct), but the list row and the thread header still carry the status pill \"Pending ID\" (before deletion it was \"Active\").\n\nCause: rental-api AdminMessagesService.cs:150 derives MemberStatus = DeriveStatus(MemberIsBlocked, MemberIsIdConfirmed); deletion clears the ID confirmation, so the status falls to Pending. Rental-Ui messages-page.component.html renders <app-admin-user-status-pill [status]=\"thread.memberStatus\"> at ~lines 136 and 644 regardless of thread.memberIsDeleted (which is already in the contract, ADR-056 / AD-3).\n\nEffect: a moderator reads it as \"this user still has to verify ID\" for an account that no longer exists.",
-    "prompt": "Read CLAUDE.md and ADR-056 (account deletion, \"Deleted user\" pattern) in knowledge/decisions.md.\n\nGoal: /admin/messages never shows a verification/status pill for a deleted member.\n\n1. Rental-Ui messages-page.component.html: do not render app-admin-user-status-pill (list row and thread header, ~lines 136 and 644) when thread.memberIsDeleted is true. No new status value and no API change (a \"Deleted\" status would be a contract change - if you think it is needed, stop and bring it to Tigran, Rule 0).\n2. Check other admin surfaces that render memberStatus/user status for a possibly deleted user (grep app-admin-user-status-pill) and apply the same rule only where the deleted flag is already available.\n3. Unit spec: deleted member -> no pill; live member -> pill as today.\n\nRoute 6 (Rental-Ui only, no contract change): frontend-dev -> verifier (fast). Prod check: admin writes to a throwaway user, the user deletes the account, /admin/messages shows \"Deleted user\" with no \"Pending ID\" pill."
-  },
-  {
-    "name": "Settings: Password & Language open in the Settings sheet (like Notifications)",
-    "priority": "Medium",
-    "labels": [
-      "frontend",
-      "design"
-    ],
-    "desc": "Goal (Tigran, 2026-11-08): on /profile/settings the Password and Language rows open the same container as Notifications: bottom sheet under 961 px, 560 px centred dialog above.\n\n- Password: Current / New / Confirm, Cancel + Save; on success the sheet closes and the global toast says \"Password updated\". The success page is gone; /profile/settings/password redirects to /profile/settings.\n- Language: list of 3 languages, tap applies and closes; no toast.\n- Google-managed accounts: Password row stays inactive.\n- Sheet shell shared by the Settings rows only (other app sheets not migrated).\n\nDecisions: ADR-021 amendment 2026-11-08 (knowledge/decisions.md). Design: Claude Design \"Password Language Stage 2.html\"; export + notes in knowledge/specs/settings-sheets/. Route: UI only, no API change: frontend-dev -> verifier (before/after screenshots).",
-    "prompt": "Read CLAUDE.md, the ADR-021 amendment of 2026-11-08 in knowledge/decisions.md and knowledge/specs/settings-sheets/ (design-notes.md + design/). Implement the Password and Language sheets on /profile/settings in Rental-Ui, reusing the Notifications sheet container (features/profile/components/notifications-sheet) via a shell scoped to Settings. Route 6: frontend-dev -> verifier fast tier with before/after screenshots at 390 and 1280."
-  },
-  {
-    "name": "Swipe down closes every mobile bottom sheet (ADR-061 rollout)",
-    "priority": "High",
-    "labels": [
-      "frontend",
-      "design"
-    ],
-    "desc": "Tigran 2026-11-08, ADR-061: every sheet shown as a bottom sheet under 961 px closes with a swipe down on its handle/header (threshold, otherwise snaps back), through the same close path as X / Esc / backdrop; a sheet that blocks closing (e.g. while saving) also blocks the swipe. Desktop dialogs unaffected.\n\nThe Settings sheets (features/profile/components/settings-sheet) got it with the card \"Settings: Password & Language open in the Settings sheet\" - reuse that implementation. This card migrates the remaining bottom sheets, e.g. admin category-edit-sheet, reject-sheet, listings filters, delete-account dialog, phone-step and any other component rendering a mobile bottom sheet (grep for sheet / handle / bottom: 0).",
-    "prompt": "Read CLAUDE.md, ADR-061 in knowledge/decisions.md and the swipe-down implementation in Rental-Ui/src/app/features/profile/components/settings-sheet. Inventory every Rental-Ui component that renders a bottom sheet under 961 px (grep sheet, __handle, position: fixed + bottom: 0) and list them. Then add swipe-down-to-close to each, preferably by extracting the gesture from settings-sheet into a shared directive in shared/ui (structural: confirm with Tigran first per Rule 0). Respect each sheet blocking close while busy. Route 6: frontend-dev -> verifier (390 px walk of each sheet, unit specs for the gesture). Before/after not needed (behaviour only)."
-  },
-  {
-    "name": "Listing details: sideways scroll on mobile (hero bleed vs page gutter, ADR-063)",
-    "priority": "Medium",
-    "labels": [
-      "frontend",
-      "bug"
-    ],
-    "desc": "**Problem.** On phones the listing details page (`/listings/:id`) scrolls sideways by ~2px. Measured on dorent.am with Playwright at 320/360/375/390/414: `scrollWidth = innerWidth + 2`.\n\n**Root cause.** `.detail-page__hero` bled out of `.page-container` by a hard-coded `-10px` (`--ui-space-10`), while the mobile gutter (≤560px) is 8px. The hero hung 2px past each edge. At 561–1099px the same constant left 10–60px side strips instead of a full bleed. This is the same class of bug the page header had earlier (page-header.component.scss:146).\n\n**Fix (ADR-063).** `.page-container` defines its gutter once as `--page-gutter`; every full-bleed element reads it.\n- `src/styles.css`: `--page-gutter` per breakpoint (1rem / 20px ≤900 / 8px ≤560 / 70px ≥1024), same values as before.\n- `listing-details-page.component.scss`: hero bleeds by `--page-gutter` (≥1100px unchanged).\n- `listings-page.component.scss`: `.lp-sticky-header` (mobile sticky header on /listings) also reads `--page-gutter`, so its inner padding is now 20px at 561–900px (was 10px) and 16px at 901–960px (was 24px).\n- New e2e: `e2e/listing-details-no-hscroll.spec.ts` (`scrollWidth <= innerWidth` at 320/375/414; hero spans 0..innerWidth at 375 and 768).\n\n**Branch.** Rental-Ui `fix/detail-hero-overflow` (worktree), commit `75277c2`; merges into `dev`, ships via the dev → main PR."
-  },
-  {
-    "name": "Home redesign — Stage 1 (hero, toy rows, how it works, FAQ)",
-    "priority": "High",
-    "labels": [
-      "frontend",
-      "backend",
-      "contract",
-      "design"
-    ],
-    "desc": "Implement Claude Design `Home Redesign Stage 1.html` (project df24299b-1299-4804-8a0a-5484005594c3; files hm-app.jsx, hm-data.jsx, hm-parts.jsx).\n\n**Scope (route 8: api + contract + ui)**\n- Hero: H1 44/52 desktop, 28/34 mobile; search pill 60/56 px with round orange submit; desktop map 560×360 (480 at 1280).\n- Map touch-lock: scrim + \"tap to move the map\" hint, zoom inactive until tap (inside ADR-015).\n- New Home-only toy card (`home-toy-card`) + skeleton: age pill, \"City, District\", rating or \"no reviews yet\", price + unit, condition chip, \"View\" pill on desktop.\n- Toy rows: desktop 4 cards + 54 px peek with overlay arrows; mobile 232 px cards with scroll-snap.\n- Section heading scale 24/32 and 20/28, rhythm 64/40, gutters via `--page-gutter` (ADR-063).\n- \"How it works\": visible h2, segmented switch, 6 steps (desktop row with dashed connectors, mobile vertical list).\n- FAQ: desktop grey panel + \"Still have questions\" card; mobile list then card.\n- \"Every toy is reviewed\" trust strip removed (per design).\n- Footer, bottom nav, header unchanged.\n\n**Decisions (Tigran, 2026-11-16, \"start\" on the recommendations)**\n1. Home-only card component; the shared `app-listing-card` is untouched. Unifying it is a later card.\n2. Backend: `GET /home/sections` fills `Rating`/`ReviewCount` (same rule as the catalogue, rating at >=2 reviews) and adds nullable `District` (en/hy/ru). No migration.\n3. Price suffix follows `priceUnit` (ADR-047); `priceUnit` and `district` are synced into the UI `ListingPreview`.\n\n**Open**\n- Lending-mode step copy: the design flags it as duplicated or misleading. Not changed in this card; a follow-up needs Tigran's OK.\n\n**Flow:** backend-dev → contract-guardian → frontend-dev → verifier (fast, then full) → reviewer → before/after slider → PR dev→main.\n"
-  },
-  {
     "name": "Localize the city name in listing location lines (Yerevan → Երևան / Ереван)",
     "priority": "Low",
     "labels": [
