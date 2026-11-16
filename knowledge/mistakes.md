@@ -719,3 +719,9 @@ Date: 2026-11-16 | Area: tooling / git worktrees on Windows (cost one `npm ci`, 
 **Cause:** `git worktree remove` deletes the worktree directory recursively, and on Windows that recursion went through the junction into its target instead of unlinking the junction.
 **Fix:** `npm ci` in the main checkout, then build + the new e2e spec re-run green.
 **Rule:** before removing a worktree that borrows `node_modules` through a junction or symlink, delete the link itself first (`cmd /c rmdir <wt>\node_modules`, which removes the junction and not its target), then `git worktree remove`. Or give the worktree its own `npm ci` and skip the link.
+
+## M-092: `npm test` fails every spec with "Vitest failed to find the runner" when the shell's cwd has a lowercase drive letter
+Date: 2026-11-16 | Area: tooling / Rental-Ui unit tests on Windows (cost: a paused card and two blind fixes)
+**Symptom:** all 201 spec files fail before any test runs ("Vitest failed to find the runner … angular:test-bed-init"); cache clears and `npm ci` seemed to help once, then not.
+**Cause:** the Bash tool starts in `c:/Users/...` (lowercase drive). Vitest resolves the `vitest` package twice under paths that differ only in case, so the spec's init cannot see the runner. From `C:\...` the same suite runs (2617/2622).
+**Rule:** run `npm test` / `ng test` from a cwd with an uppercase drive letter: `cd "C:/Users/tigra/Projects/rental/rental-app/Rental-Ui"` in Bash, or PowerShell. Put this in every hand-off that runs UI unit tests.
