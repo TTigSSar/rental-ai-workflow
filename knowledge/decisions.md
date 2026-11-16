@@ -1788,3 +1788,40 @@ Date: 2026-11-08 | Status: accepted | Decided by: Tigran | Area: UI, a11y (cross
 2. **The show/hide password toggle in `UiInput` is in the Tab order** (no `tabindex="-1"`), with an accessible name that says show or hide.
 **Why:** Tigran, 2026-11-08: swipe-down is the expected mobile gesture; a toggle that Tab skips cannot be used from the keyboard.
 **Rollout:** the Settings sheets get it with the Settings-sheets card; the app's other existing bottom sheets are migrated by a separate card.
+
+## ADR-062: Category names are data, stored and served in en/hy/ru; the UI picks the language
+Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: data model, API/contract, i18n (Trello #263)
+**Decision:**
+1. `Category` keeps `Name` as the **English** name and gains required `NameHy` and `NameRu` (max 120), like `District` (`NameEn/NameHy/NameRu`).
+2. Every DTO a screen renders a category name from carries all three (`name/nameHy/nameRu`, or `categoryName/categoryNameHy/categoryNameRu`). The UI picks by the current language with `categoryDisplayName()`, falling back to English when a value is blank. Switching language never refetches. Category names never go through i18n keys.
+3. Admin create requires all three names. Admin PATCH accepts any subset; a supplied value must not be blank.
+4. The migration backfills hy/ru for the 10 reference slugs; any other existing row gets hy = ru = Name until an admin edits it.
+5. Server-side text keeps the English `Name` (moderation log, AI-search prompt, sort tiebreak, uniqueness), except the recategorise chat note, which uses the member's language (ADR-025).
+**Rejected:** (a) i18n keys by slug (ADR-041 style): an admin-created category stays English until a release. (b′) server picks the language from Accept-Language: needs a language interceptor and a refetch on every switch; ADR-041 rejected it for the same reasons.
+**Related:** ADR-016 (slug is stable), ADR-025, ADR-041.
+
+## ADR-063: The page gutter is one CSS variable, `--page-gutter`; every full-bleed bleed reads it
+Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: UI layout (cross-cutting)
+**Decision:**
+1. `.page-container` (global `styles.css`) defines its horizontal gutter once per breakpoint as `--page-gutter` and sets `padding-inline: var(--page-gutter)`. The breakpoint values stay as they are today.
+2. Any element that bleeds out of `.page-container` to the viewport edges uses `margin-inline: calc(-1 * var(--page-gutter))` and `width: calc(100% + 2 * var(--page-gutter))`, never a hard-coded spacing token or pixel value.
+**Why:** the listing-details hero bled by a hard-coded `-10px` while the mobile gutter is 8px, so the page scrolled sideways by 2px on every phone; between 561 and 1099px the same constant left 10–60px side strips. The page header had the same bug earlier (fixed by pinning it to the viewport). Tigran, 2026-11-16.
+**Rejected:** patching only the hero with `-8px` at ≤560px: fixes the scroll but keeps the strips and breaks again on the next gutter change.
+**Related:** M-026 (horizontal overflow at 375px, `scrollWidth <= innerWidth` regression). Trello #265.
+
+## ADR-064: Home toy rows use a Home-only card; home sections carry rating, review count and district
+Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend Home + API contract (`GET /api/home/sections`)
+**Decision:**
+1. The Home toy rows render a new Home-only card (`features/home/components/home-toy-card`) per the `Home Redesign Stage 1` design. The shared `app-listing-card` (catalogue, favorites, profiles) is untouched; unifying the two is a later card.
+2. `GET /api/home/sections` items fill `Rating`/`ReviewCount` with the catalogue's rule (rating only at ≥ 2 reviews, else `null`) and gain a nullable, additive `District` (`ListingDistrictResponse`, en/hy/ru names). No migration.
+3. The card's price suffix follows the listing's `priceUnit` (ADR-047), not a fixed "per day".
+**Why:** the design's card shows "City, District" and "★ 4.8 (12)"; without the data, every toy would claim "no reviews yet" (ADR-014: the backend is the source of truth for claims). Restyling the shared card would redesign three other pages without a design. Tigran, 2026-11-16 (Trello #268).
+**Rejected:** UI-only (city only, no rating), which misstates reviewed toys; restyling the shared card now.
+
+## ADR-065: A listing's handover and minimum rental always show on its page; a missing value reads as the create-wizard default
+Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend listing details + dev seed
+**Decision:**
+1. The details page always renders the "Handover" and "Minimum rental" rows beside the map. Missing delivery types display as Pickup; a missing or non-positive `minRentalDays` displays as 1 day — the same defaults the create wizard sends. Display only: nothing is written back, and booking enforcement (ADR-043) still reads the stored value.
+2. The dev seed gives every seeded listing delivery options and a minimum rental (capped by its shortest seeded booking) and backfills only null values.
+**Why:** seeded and legacy listings had neither field, so the rows vanished and the map went full-width; renters could not see how to get the toy. Tigran, 2026-11-16.
+**Rejected:** hiding the rows when empty (previous behaviour); seed-only (legacy prod listings would still show nothing).
