@@ -1799,3 +1799,12 @@ Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: data model, API
 5. Server-side text keeps the English `Name` (moderation log, AI-search prompt, sort tiebreak, uniqueness), except the recategorise chat note, which uses the member's language (ADR-025).
 **Rejected:** (a) i18n keys by slug (ADR-041 style): an admin-created category stays English until a release. (b′) server picks the language from Accept-Language: needs a language interceptor and a refetch on every switch; ADR-041 rejected it for the same reasons.
 **Related:** ADR-016 (slug is stable), ADR-025, ADR-041.
+
+## ADR-063: The page gutter is one CSS variable, `--page-gutter`; every full-bleed bleed reads it
+Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: UI layout (cross-cutting)
+**Decision:**
+1. `.page-container` (global `styles.css`) defines its horizontal gutter once per breakpoint as `--page-gutter` and sets `padding-inline: var(--page-gutter)`. The breakpoint values stay as they are today.
+2. Any element that bleeds out of `.page-container` to the viewport edges uses `margin-inline: calc(-1 * var(--page-gutter))` and `width: calc(100% + 2 * var(--page-gutter))`, never a hard-coded spacing token or pixel value.
+**Why:** the listing-details hero bled by a hard-coded `-10px` while the mobile gutter is 8px, so the page scrolled sideways by 2px on every phone; between 561 and 1099px the same constant left 10–60px side strips. The page header had the same bug earlier (fixed by pinning it to the viewport). Tigran, 2026-11-16.
+**Rejected:** patching only the hero with `-8px` at ≤560px: fixes the scroll but keeps the strips and breaks again on the next gutter change.
+**Related:** M-026 (horizontal overflow at 375px, `scrollWidth <= innerWidth` regression). Trello #265.
