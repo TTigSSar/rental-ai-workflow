@@ -1808,3 +1808,12 @@ Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: UI layout (cros
 **Why:** the listing-details hero bled by a hard-coded `-10px` while the mobile gutter is 8px, so the page scrolled sideways by 2px on every phone; between 561 and 1099px the same constant left 10–60px side strips. The page header had the same bug earlier (fixed by pinning it to the viewport). Tigran, 2026-11-16.
 **Rejected:** patching only the hero with `-8px` at ≤560px: fixes the scroll but keeps the strips and breaks again on the next gutter change.
 **Related:** M-026 (horizontal overflow at 375px, `scrollWidth <= innerWidth` regression). Trello #265.
+
+## ADR-064: Home toy rows use a Home-only card; home sections carry rating, review count and district
+Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend Home + API contract (`GET /api/home/sections`)
+**Decision:**
+1. The Home toy rows render a new Home-only card (`features/home/components/home-toy-card`) per the `Home Redesign Stage 1` design. The shared `app-listing-card` (catalogue, favorites, profiles) is untouched; unifying the two is a later card.
+2. `GET /api/home/sections` items fill `Rating`/`ReviewCount` with the catalogue's rule (rating only at ≥ 2 reviews, else `null`) and gain a nullable, additive `District` (`ListingDistrictResponse`, en/hy/ru names). No migration.
+3. The card's price suffix follows the listing's `priceUnit` (ADR-047), not a fixed "per day".
+**Why:** the design's card shows "City, District" and "★ 4.8 (12)"; without the data, every toy would claim "no reviews yet" (ADR-014: the backend is the source of truth for claims). Restyling the shared card would redesign three other pages without a design. Tigran, 2026-11-16 (Trello #268).
+**Rejected:** UI-only (city only, no rating), which misstates reviewed toys; restyling the shared card now.
