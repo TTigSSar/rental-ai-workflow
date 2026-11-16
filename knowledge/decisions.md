@@ -1788,3 +1788,14 @@ Date: 2026-11-08 | Status: accepted | Decided by: Tigran | Area: UI, a11y (cross
 2. **The show/hide password toggle in `UiInput` is in the Tab order** (no `tabindex="-1"`), with an accessible name that says show or hide.
 **Why:** Tigran, 2026-11-08: swipe-down is the expected mobile gesture; a toggle that Tab skips cannot be used from the keyboard.
 **Rollout:** the Settings sheets get it with the Settings-sheets card; the app's other existing bottom sheets are migrated by a separate card.
+
+## ADR-062: Category names are data, stored and served in en/hy/ru; the UI picks the language
+Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: data model, API/contract, i18n (Trello #263)
+**Decision:**
+1. `Category` keeps `Name` as the **English** name and gains required `NameHy` and `NameRu` (max 120), like `District` (`NameEn/NameHy/NameRu`).
+2. Every DTO a screen renders a category name from carries all three (`name/nameHy/nameRu`, or `categoryName/categoryNameHy/categoryNameRu`). The UI picks by the current language with `categoryDisplayName()`, falling back to English when a value is blank. Switching language never refetches. Category names never go through i18n keys.
+3. Admin create requires all three names. Admin PATCH accepts any subset; a supplied value must not be blank.
+4. The migration backfills hy/ru for the 10 reference slugs; any other existing row gets hy = ru = Name until an admin edits it.
+5. Server-side text keeps the English `Name` (moderation log, AI-search prompt, sort tiebreak, uniqueness), except the recategorise chat note, which uses the member's language (ADR-025).
+**Rejected:** (a) i18n keys by slug (ADR-041 style): an admin-created category stays English until a release. (b′) server picks the language from Accept-Language: needs a language interceptor and a refetch on every switch; ADR-041 rejected it for the same reasons.
+**Related:** ADR-016 (slug is stable), ADR-025, ADR-041.
