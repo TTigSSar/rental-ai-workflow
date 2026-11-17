@@ -719,6 +719,7 @@ Date: 2026-11-16 | Area: tooling / git worktrees on Windows (cost one `npm ci`, 
 **Cause:** `git worktree remove` deletes the worktree directory recursively, and on Windows that recursion went through the junction into its target instead of unlinking the junction.
 **Fix:** `npm ci` in the main checkout, then build + the new e2e spec re-run green.
 **Rule:** before removing a worktree that borrows `node_modules` through a junction or symlink, delete the link itself first (`cmd /c rmdir <wt>\node_modules`, which removes the junction and not its target), then `git worktree remove`. Or give the worktree its own `npm ci` and skip the link.
+**Recurred 2026-11-17 (#271):** a frontend-dev run made a scratch worktree with a junction to check a baseline, and removing it emptied `node_modules` again (restored with `npm ci`). The hand-off did not carry the rule. Every later hand-off said "no worktrees with node_modules junctions", and the verifier built its "before" state from `git archive` + its own `npm ci` with no incident. Put the rule in the CONSTRAINTS of every UI writer and verifier hand-off.
 
 ## M-092: `npm test` fails every spec with "Vitest failed to find the runner" when the shell's cwd has a lowercase drive letter
 Date: 2026-11-16 | Area: tooling / Rental-Ui unit tests on Windows (cost: a paused card and two blind fixes)
@@ -726,3 +727,10 @@ Date: 2026-11-16 | Area: tooling / Rental-Ui unit tests on Windows (cost: a paus
 **Cause:** the Bash tool starts in `c:/Users/...` (lowercase drive). Vitest resolves the `vitest` package twice under paths that differ only in case, so the spec's init cannot see the runner. From `C:\...` the same suite runs (2617/2622).
 **Rule:** run `npm test` / `ng test` from a cwd with an uppercase drive letter: `cd "C:/Users/tigra/Projects/rental/rental-app/Rental-Ui"` in Bash, or PowerShell. Put this in every hand-off that runs UI unit tests.
 **Recurred 2026-11-16 (#267):** the first frontend-dev hand-off left the rule out. The writer lost a run on cache clears and reported the spec as failing, until the orchestrator re-ran it from `C:/` (4/4 green). Copy the rule into the CONSTRAINTS of every UI writer and verifier hand-off.
+
+## M-093: The contract gained three fields, but a hand-written response normaliser rebuilt the object and dropped them
+Date: 2026-11-17 | Area: Rental-Ui AI search (Trello #271, caught by frontend-dev before merge)
+**Symptom:** after the backend and contract-guardian added `categoryIds`/`ageRanges`/`conditions` to `AiSearchFilters`, the UI still lost them on every AI result: the multi-select and condition filters would silently reset after an AI search.
+**Cause:** `normalizeAiSearchResponse` in `listings-api.service.ts` rebuilds `appliedFilters` field by field. contract-guardian syncs types and models only, so the new optional fields compiled while the normaliser never copied them. The specs built `AiSearchFilters` directly and never went through the normaliser.
+**Fix:** Rental-Ui 3690ce4 copies the lists in the normaliser, makes the three fields required-nullable (so a missing copy is a compile error) and adds a normaliser spec.
+**Rule:** when a response DTO gains a field, grep for hand-written normalisers/mappers of that DTO (`normalize*`, `map*`, `from*`) as part of the contract sync, and prefer required-nullable fields over optional ones so an incomplete mapper fails to compile. See M-071 for the template half of the same gap.

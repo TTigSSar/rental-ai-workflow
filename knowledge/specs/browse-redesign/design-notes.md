@@ -28,3 +28,4 @@
 
 - The mobile filter sheet has no design. It gets the same new controls in its current sheet style until a mobile stage is drawn.
 - No result-count line (ai-search note 14 stands), though the design's toolbar leaves an empty slot for one.
+- The "Rented" pill and the owner page's Available/In rent tabs depend on `listingStatus`, which the backend does not emit yet. Tigran (2026-11-17): not needed now.
