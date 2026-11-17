@@ -6,7 +6,7 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
 
 1. Stage 1 rev 2 direction approved (Tigran, 2026-10-26). AI search is an **"AI" switch inside the existing catalogue search field**. There is no separate page, bar or mode screen.
 2. The AI writes into the **existing filters and chips**. There are no separate AI chips. The real catalogue components (category selector, mobile sheet "Cancel / Apply") are kept, not the mock's versions.
-3. Refinement means editing the same description. On mobile the field grows while typing and collapses to one line after a search.
+3. Refinement means editing the same description. On mobile the field grows while typing and collapses to one line after a search. *Amended 2026-11-17 (Tigran):* it stays one line (switch + submit inline) until the text wraps, and only then grows with the controls in a bottom row.
 4. ~~The explanation line states the intent only and never shows filter values.~~ SUPERSEDED (Tigran, 2026-10-29): there is **no explanation line**. The chips already show what the AI understood. The API's `intent` field stays but is not displayed.
 5. The sort "Most relevant first" is the default in AI mode. Page 1 holds the 20 ranked cards, and page 2 onward opens with the divider "More listings matching your criteria".
 6. A widened district adds **one chip per district** (Kentron, Arabkir, Avan, …), each with its own ×, and those districts are checked in the district filter. This supersedes the one grouped chip (Tigran, 2026-10-27).
@@ -15,7 +15,7 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
 9. AI-set controls get the same `#C24600` border that a user-set filter gets. On mobile, the filter button shows the count badge.
 10. Stage 2 approved (Tigran, 2026-10-27):
     - **Loading:** previous cards stay in place, dimmed and inert, under one status line with a thin indeterminate bar. A first search shows the existing skeleton.
-    - **Re-rank:** "Updating the order" replaces the count line.
+    - **Re-rank:** "Updating the order" replaces the count line. *Amended 2026-11-17 (Tigran, ADR-054):* a filter change no longer re-ranks automatically; the catalogue reloads and a "Re-rank with AI" button offers the paid call.
     - **Purpose widening:** one quiet note, with no undo.
     - **No results:** option **A**, stacked full-width buttons. The primary is "Widen the area", which drops the district filter and searches all of Yerevan, or "Edit description" when no district is set. Secondary actions: "Increase the budget" (focuses the price "To" field, no suggested amount), category pills, and the bell. There is no "Clear filters".
 11. The privacy note reads "Your request is processed by AI" / "Ваш запрос обрабатывает искусственный интеллект" / "Ձեր հարցումը մշակում է արհեստական բանականությունը" (Tigran, 2026-10-30; supersedes "Your description is processed by an AI service.").

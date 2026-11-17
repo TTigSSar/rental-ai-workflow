@@ -103,7 +103,3 @@ State per repo: branch, commit sha + subject, push result, PR link. Then stop �
 ## Reusing an open PR
 
 `dev` is long-lived, so a PR from `dev` → `main` may already be open. Pushing more commits to `origin/dev` updates that PR automatically — do not open a second one. If unsure whether a PR is open, say so and give the compare link; GitHub shows the existing PR instead of a new-PR form when one exists.
-
-## Housekeeping
-
-`rental-api` carries two stale local branches, `D` and `mina`, plus `rental-app` has `feature/chat-realtime` and `fix/utc-datetime-serialization`. Leave them alone unless Tigran asks for cleanup.

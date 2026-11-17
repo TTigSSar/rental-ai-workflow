@@ -75,7 +75,7 @@ Level derivation: `HIGH` = rehearsal + smoke coverage + verified backup + known 
 
 ## DoRent production context (facts, do not re-derive)
 
-- Layout: `/opt/dorent/{rental-api, Rental-Ui, backups, deployment-notes}`; the UI image builds from `../Rental-Ui`, so both repos sit side by side. The server tracks `rental-api` branch `dev`.
+- Layout: `/opt/dorent/{rental-api, Rental-Ui, backups, deployment-notes}`; the UI image builds from `../Rental-Ui`, so both repos sit side by side. Both checkouts track `main` (`origin/main`), never `dev` — production only gets what Tigran merged (verified 2026-11-17; a stale local `dev` branch in `rental-api` is a leftover, not in use).
 - Stack (`docker-compose.production.yml`): `db` (SQL Server 2022, `MSSQL_MEMORY_LIMIT_MB=1024`), `api` (ASP.NET Core, `/health`, loopback `127.0.0.1:8080`), `ui` (nginx, loopback `127.0.0.1:4200→80`, reverse-proxies `/api/`, `/uploads/`, `/hubs/` with WebSocket upgrade — this routing is a contract with the app, see M-008; change only deliberately), `cloudflared` (token in `.env`).
 - Exposure: Cloudflare Tunnel only. Zero inbound ports except SSH (ufw). TLS terminates at Cloudflare; public hostnames `dorent.am` and `www.dorent.am` → `ui:80`. There is no A-record/origin-cert path — do not introduce one casually (ADR-003).
 - Host: 2 GB RAM + 4 GB swap (deliberate low-budget compromise, ADR-003 amendment). Consequence: always `docker compose build` BEFORE `up -d`, never rebuild while SQL Server is under load.

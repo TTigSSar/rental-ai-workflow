@@ -38,6 +38,7 @@ docker compose -f rental-api/docker-compose.yml down -v   # teardown
 | `dotnet test rental-api/RentalPlatform.sln` | backend unit/integration (`tests/RentalPlatform.Tests`) |
 | `cd Rental-Ui && npm test` | frontend unit tests |
 | `cd Rental-Ui && npm run e2e` | Playwright journeys — run against the real Angular app with the **backend stubbed at network layer** (`e2e/support/api-mock.ts`); no live API/DB needed |
+| `cd Rental-Ui && npm run e2e:real` | QA-owned real-stack journeys (`e2e/real/`) against the docker stack (UI :4200 + API + SQL Server); start it with the docker compose command above |
 
 ## Demo accounts (dev seed, password `Demo1234`)
 

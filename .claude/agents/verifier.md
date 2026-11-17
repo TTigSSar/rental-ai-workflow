@@ -23,10 +23,12 @@ You are multimodal — take screenshots and actually LOOK at them, don't just as
 
 ```bash
 cd Rental-Ui   # dev server must be running (npm start)
-npx playwright screenshot --viewport-size="375,812"  "http://localhost:4200/<changed-page>" shot-mobile.png
+npx playwright screenshot --viewport-size="390,844"  "http://localhost:4200/<changed-page>" shot-mobile.png
 npx playwright screenshot --viewport-size="768,1024" "http://localhost:4200/<changed-page>" shot-tablet.png
-npx playwright screenshot --viewport-size="1440,900" "http://localhost:4200/<changed-page>" shot-desktop.png
+npx playwright screenshot --viewport-size="1280,800" "http://localhost:4200/<changed-page>" shot-desktop.png
 ```
+
+The project's screenshot widths are **390 / 768 / 1280** (Tigran, 2026-11-17) — use them for every UI check, including before/after pairs.
 
 Then Read each PNG and inspect visually for: horizontal overflow/scrollbar, overlapping or clipped elements, unreadable/truncated text, controls that fell out of the viewport, broken grids (cards stacking wrong), touch targets that collapsed. For pages behind auth, screenshot via a small Playwright script that logs in with a seed account first. Include the per-viewport verdict in your report (attach what looked wrong, referencing the screenshot file).
 
@@ -34,7 +36,8 @@ Then Read each PNG and inspect visually for: horizontal overflow/scrollbar, over
 
 1. Entire test suites: `dotnet test rental-api/RentalPlatform.sln` + `cd Rental-Ui && npm test`.
 2. Playwright journeys: `cd Rental-Ui && npm run e2e` (backend is network-stubbed; no live API needed).
-3. Note for the orchestrator: `/security-review` and a11y check (UI diffs) are run at the session level, not by you.
+3. Real-stack journeys (QA-owned) for the affected areas: start the docker stack (`docker compose -f rental-api/docker-compose.yml up --build -d`), then `cd Rental-Ui && npm run e2e:real` (all of it, or the `e2e/real/` specs for the touched flows). If docker is unavailable, list it under "not verified" — never skip silently.
+4. Note for the orchestrator: `/security-review` and a11y check (UI diffs) are run at the session level, not by you.
 
 ## Report format (always)
 

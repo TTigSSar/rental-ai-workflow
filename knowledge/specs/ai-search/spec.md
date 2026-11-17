@@ -1,6 +1,6 @@
 # AI search ("describe the toy") — product spec v0.1
 
-Status: product flow agreed by Tigran (with ChatGPT and Claude), 2026-10-26. No ADR yet. See *Open before ADR*. Design: [design-notes.md](design-notes.md).
+Status: product flow agreed by Tigran (with ChatGPT and Claude), 2026-10-26. Decided in ADR-054 (and its amendments) — the ADR wins where this spec differs. *Open before ADR* below is historical. Design: [design-notes.md](design-notes.md).
 
 ## Goal
 A signed-in user describes the toy in their own words in the catalogue search field. DoRent then shows real catalogue listings, with the most relevant first.

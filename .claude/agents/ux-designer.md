@@ -38,7 +38,7 @@ Conflicts with the spec or an ADR are always reported; they block only when the 
 Used when the hand-off says `MODE: AUDIT`: review how an existing screen or section looks and works today, before anyone decides what to change. No design prompt is written in this mode.
 
 Inputs, passed by the orchestrator:
-- absolute paths to screenshots of the current UI — at least desktop 1440 px and mobile 390 px, plus the loading/empty states when they exist. Open them with Read; judge what you see, not what the code suggests. Without screenshots return `BLOCKED` (code alone cannot show the rendered result);
+- absolute paths to screenshots of the current UI — at least desktop 1280 px and mobile 390 px (the project's screenshot widths are 390 / 768 / 1280), plus the loading/empty states when they exist. Open them with Read; judge what you see, not what the code suggests. Without screenshots return `BLOCKED` (code alone cannot show the rendered result);
 - the source files of the section (template, styles, child components) and the scope — which section, which roles/states.
 
 Review through the six UX lenses above plus visual craft: hierarchy and focal point, spacing rhythm and alignment, consistency with neighbouring sections and the tokens, contrast (WCAG AA) and 44 px targets, density on 390 px, long hy/ru strings, discoverability (e.g. hidden carousel items), loading/empty states. Ground every finding in a screenshot or a file/line; do not invent problems to fill the list.

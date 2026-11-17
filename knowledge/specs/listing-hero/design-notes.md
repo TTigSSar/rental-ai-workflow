@@ -14,8 +14,21 @@ Trello #270. Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3
 8. Landscape photos: option 05A — whole photo (`contain`) over a blurred backdrop (as today).
 9. Heart and share stay as they are today (pill buttons with text, next to the title) — the design's icon-only row was not accepted (Tigran, 2026-11-17).
 
+### Photo viewer (Trello #273)
+
+Design: same project, file `Photo Viewer Stage 1.html`, **variant A**. Implemented in Rental-Ui a7ab9df.
+
+10. Viewer is a fullscreen layer portalled to `body`; nothing from the page paints over it. Background pure black, no blur — deliberately unlike the hero's blurred backdrop (decision 8) (Tigran, 2026-11-17).
+11. Variant A: top row (counter pill left, 44px/52px white-disc close right) and the thumbnail strip sit on black bands and never cover the photo; photo `contain` between them.
+12. Thumbnails, not dots: 56px mobile / 64px desktop, inactive 50%, active 100% + white ring + `aria-current`.
+13. Gestures: horizontal swipe changes photo; swipe down closes (ADR-061 threshold). No pinch-zoom in stage 1.
+14. Desktop arrows 52px white discs; no wrap-around — prev hidden on 1/N, next on N/N, ← → stop at the ends (Tigran, 2026-11-17).
+15. Single photo: photo + close only.
+
 ## Open / not accepted
 
 - Age/condition chips under the price — not added (out of scope; duplicates the specs block). Tigran, 2026-11-17.
 - Sticky compact title on scroll — not decided; stage 2 if wanted.
 - Loading/no-photo/single-photo states — stage 2.
+- Photo viewer stage 2: system/browser Back closes the viewer (needs a history entry), pinch-zoom, loading/failed-image states, many-photo overflow, tablet width, open/close transition from the hero (Tigran deferred, 2026-11-17).
+- Photo viewer: the close button shows its focus ring on open (focus moves there by design) — keep, or limit to keyboard opens, if it bothers on phones.
