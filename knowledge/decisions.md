@@ -1850,6 +1850,7 @@ Date: 2026-11-17 | Status: accepted | Decided by: Tigran | Area: API contract (`
    - `nearest` is valid only with an origin (Haversine on public coordinates, ADR-008); without one the API returns 400 and the UI disables the option.
    - `rating_desc` puts listings without a rating last.
    - Ties break on newest. AI mode keeps its own relevance order (ADR-054).
+   - When the renter explicitly picks Nearest, the UI sends the rounded origin (3 dp, ADR-008) even with no radius chosen. This narrows the 2026-10-05 rule "home coordinates ride along only with a radius" to "only with a radius or an explicit Nearest" (Tigran, 2026-11-17).
 4. The UI writes the new filters and `sort` to the URL. Old links with `categoryId`/`ageGroup` keep working.
 
 **Why:** the Browse Redesign Stage 1 design is a multi-select sidebar with counts, a condition filter and a real sort. The old client-side sort only reordered the loaded page. Tigran chose the full scope, 2026-11-16 (Trello #271).

@@ -21,7 +21,7 @@
    - condition chips.
 4. Distance (radius from a home or a point) stays as an extra sidebar section, restyled to match; its behaviour is unchanged (Tigran, 2026-11-16).
 5. With Smart search on and the query empty, a panel shows 2 example prompts with tags; clicking one fills the field. Once text is typed, a hint line replaces the panel.
-6. One shared toy card on every page (ADR-064 amendment, Tigran 2026-11-17). Owner and booking-status badges sit in one pill over the photo, top-left; distance goes on the location line.
+6. One shared toy card on every page (ADR-064 amendment, Tigran 2026-11-17). Owner, booking-status and "Rented" badges sit in one pill over the photo, top-left (Rented > owner > booking; "Available" shows no pill); distance goes on the location line.
 7. Condition values follow ADR-042 (New / Like new / Good / Fair). The design's "Excellent" is not used.
 
 ## Open / not accepted
