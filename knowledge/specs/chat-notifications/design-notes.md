@@ -11,6 +11,7 @@ Prompt: [design-prompt-stage1.md](design-prompt-stage1.md) · Export: [design/](
 5. **Unsubscribe page.** Public, works signed out; opening the link changes nothing, the "Unsubscribe" button POSTs. States: confirm, loading, failed (error line above the button, button stays enabled), done, invalid/expired, already off — each result is a tinted icon + one-line heading (`role="status"`) + one link to Settings.
 6. **Email.** 600 px single column, no message text; heading "<First name> wrote to you about <Toy>", toy row with 64 px thumbnail, "Open chat" button #C24600 48 px (full width under 600 px), footer with why-you-got-this line, "Unsubscribe from message emails" and "Manage in Settings" links. RU/HY copy proposals in `design/nt-pages.jsx` (`EM`).
 7. **Copy.** EN/RU strings for Settings are in `design/nt-parts.jsx` (`NS`); the hint states 15 minutes and quiet hours 22:00–09:00 Yerevan.
+8. **Push additions (Tigran, 2026-11-17, ADR-067; amends #3).** Row B "On" state gains a "Turn off on this device" button (silences push and in-tab notifications for this user on this device); the unsupported state on iOS Safari gets one hint line "Add DoRent to your Home Screen to get notifications". No new design stage.
 
 ## Open / not accepted
 - Browser notification mock (not designed — the OS draws it).
