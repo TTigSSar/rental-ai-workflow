@@ -1632,6 +1632,7 @@ Date: 2026-10-28 | Status: accepted (Tigran, 2026-10-28) | Area: API/contract, e
 **Amended 2026-10-30 (Tigran) — rank at most 10, short ids (supersedes "at most 20" above):** the LLM re-ranks at most **10 candidates**; the rest of the page keeps the catalogue order after them. Candidates go to the model numbered 1–10 and the model returns those numbers; the server maps them back to listing ids (unknown numbers dropped, missing ones appended, as before). Why: production logs showed ranking dominated by output length — 20 GUIDs ≈ 400–680 output tokens, 3.7–7.9 s per call on direct OpenAI, one 8 s timeout — so a search took 6–12 s. Rejected: raising the timeout (slower searches), returning to OpenRouter in production (contradicts the provider amendment).
 **Amended 2026-10-30 (Tigran) — paid calls count, blocked users refused (security review, supersedes "fallback searches do not count" in the per-user amendment):** every model call is logged with its cost, including aborted, timed-out and unusable ones (a pessimistic estimate when the provider reports no usage), so the $1/day budget sees it. The 50/day per-user cap counts every search **that cost money** (`CostUsd > 0`), whatever its outcome; free fallbacks (no key, budget spent, provider unreachable before billing) still do not count. A blocked user gets **403 `auth.user_blocked`** (the existing code) before any model call. `GET /ai-search/status` caches its answer for 30 s. Why: a user could abort searches mid-flight to spend the shared budget without touching their own cap, and a blocked account could keep searching until its token expired. Rejected: leaving aborted calls out of the cap (one user can switch AI off for everyone), a new `ai_search.user_blocked` code (the UI already maps `auth.user_blocked`).
 **Amended 2026-11-06 (Tigran) — reasoning effort `none`, configurable (supersedes "reasoning effort `low`" in the provider amendment):** parse and rank both run at reasoning effort **`none`**. The effort is a configuration value, `AiSearch:ReasoningEffort`, so a rollback needs no release. Why: production searches took a median of 4.4–4.7 s. Almost all of it was the two model calls of 2.3–3.1 s each; network, TLS and the DB took under 0.1 s. Most completion tokens were reasoning: rank returned ≈150 tokens for an answer of ≈30. Three searches hit the 4096-token cap and fell back. Re-test (`tools/ai-search-eval`, same 40 queries, production rank protocol): `none` scored 40/40 like `low`, used 77/31 completion tokens instead of 145/151 (parse/rank), and ranked the same top result. Rejected: `minimal`, which on the test produced as many reasoning tokens as `low`; and merging parse and rank into one call or running them in parallel, which changes the flow and is not needed yet.
+**Amended 2026-11-17 (Tigran, Trello #271) — ADR-066 filters in AI search:** the AI search's current and applied filters carry the ADR-066 lists (`categoryIds`, `ageRanges`, `conditions`) with the catalogue's caps and validation (a violation returns 400 `ai_search.invalid_filters` before any model call), so a multi-select or condition the renter set in AI mode is applied, not dropped. The LLM may still return a single category or age, and the server maps it into the lists. Sort stays relevance. Why: the chips showed filters the AI results ignored (ADR-014). Rejected: disabling condition and multi-select while AI is on.
 
 ## ADR-055: Issued JWTs are revoked by a per-user `TokenVersion` checked on every authenticated request
 Date: 2026-11-02 | Status: accepted | Area: auth surface, data model, API contract, realtime | Approved by Tigran 2026-10-31 (mechanism, own session, rollout, hub) and 2026-11-02 (DB failure 503, hub expiry) | Trello hbprFg3q
@@ -1817,6 +1818,14 @@ Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend Home +
 3. The card's price suffix follows the listing's `priceUnit` (ADR-047), not a fixed "per day".
 **Why:** the design's card shows "City, District" and "★ 4.8 (12)"; without the data, every toy would claim "no reviews yet" (ADR-014: the backend is the source of truth for claims). Restyling the shared card would redesign three other pages without a design. Tigran, 2026-11-16 (Trello #268).
 **Rejected:** UI-only (city only, no rating), which misstates reviewed toys; restyling the shared card now.
+**Amendment (Tigran, 2026-11-17, Trello #271): one shared toy card. Supersedes §1.** The Browse Redesign Stage 1 design renders the same `ToyCard` as Home, so a design now exists for the other pages.
+- `app-listing-card` is rebuilt to that card. It is used by Home rows, `/listings`, favorites and both profile pages.
+- `home-toy-card` (and its skeleton) is deleted, along with the dead `featured-listing-tile`.
+- Variants are CSS/viewport only: image 0.83 of the width with a "View" pill on desktop; 0.86 with no pill on mobile. The parent sets the width (the Home carousel, the Browse 3-column grid).
+- One pill over the photo, top-left, shows Rented, else owner ("Your listing"), else booking status; "Available" shows no pill (Tigran, 2026-11-17).
+- Distance is appended to the location line once a radius is picked (ADR-024) or the renter sorts by Nearest (ADR-066) (Tigran, 2026-11-17).
+- The hygiene "Verified" badge and "Hygiene provided" footer are dropped from the card, as drawn; hygiene stays on the listing page (Tigran, 2026-11-17).
+- §2 and §3 stand. `District` is now also filled on the catalogue, favorites and profile listings (ADR-066).
 
 ## ADR-065: A listing's handover and minimum rental always show on its page; a missing value reads as the create-wizard default
 Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend listing details + dev seed
@@ -1825,3 +1834,29 @@ Date: 2026-11-16 | Status: accepted | Decided by: Tigran | Area: frontend listin
 2. The dev seed gives every seeded listing delivery options and a minimum rental (capped by its shortest seeded booking) and backfills only null values.
 **Why:** seeded and legacy listings had neither field, so the rows vanished and the map went full-width; renters could not see how to get the toy. Tigran, 2026-11-16.
 **Rejected:** hiding the rows when empty (previous behaviour); seed-only (legacy prod listings would still show nothing).
+
+## ADR-066: Browse filters v2: multi-select, condition, facet counts and server-side sort
+Date: 2026-11-17 | Status: accepted | Decided by: Tigran | Area: API contract (`GET /api/listings`, `/map-pins`, new `/facets`) + frontend `/listings`
+**Decision:**
+1. **Multi-select filters.**
+   - Category becomes multi-select: `categoryIds` is a repeated key; legacy `categoryId` stays as an alias.
+   - Child's age becomes multi-select: several ranges, matched with OR on overlap, capped at 5.
+   - A new `conditions` filter uses the ADR-042 enum (New / LikeNew / Good / Fair). Legacy stored values are normalised (Excellent→LikeNew, Used→Fair). Capped at 4.
+   - Map pins take the same filters.
+2. **Facet counts.** `GET /api/listings/facets` takes the same filters and returns:
+   - per-category and per-district counts, each computed with every other active filter but not its own dimension;
+   - the price-per-day min/max.
+
+   It counts Approved listings only and is public. Like the catalogue, it has no rate-limit policy.
+3. **Server-side sort.** `sort` takes `newest` (default) | `price_asc` | `price_desc` | `rating_desc` | `nearest`.
+   - `nearest` is valid only with an origin (Haversine on public coordinates, ADR-008); without one the API returns 400 and the UI disables the option.
+   - `rating_desc` puts listings without a rating last.
+   - Ties break on newest. AI mode keeps its own relevance order (ADR-054).
+   - When the renter explicitly picks Nearest, the UI sends the rounded origin (3 dp, ADR-008) even with no radius chosen. This narrows the 2026-10-05 rule "home coordinates ride along only with a radius" to "only with a radius or an explicit Nearest" (Tigran, 2026-11-17). A `sort=nearest` restored from the URL (a bookmark or a shared link) counts as explicit (Tigran, 2026-11-17).
+4. The UI writes the new filters and `sort` to the URL. Old links with `categoryId`/`ageGroup` keep working.
+
+**Why:** the Browse Redesign Stage 1 design is a multi-select sidebar with counts, a condition filter and a real sort. The old client-side sort only reordered the loaded page. Tigran chose the full scope, 2026-11-16 (Trello #271).
+**Rejected:**
+- UI-only, which keeps single-select with no counts and the client sort.
+- Facet counts that ignore the active filters, which mislead once anything is selected.
+- "Nearest" without an origin, which would need geolocation on load (ADR-015).

@@ -7,7 +7,7 @@ Card: Trello #268. Design: Claude Design project `df24299b-1299-4804-8a0a-548400
 1. Stage 1 is implemented as drawn (Tigran, 2026-11-16): hero (H1 44/52 · 28/34, search pill with round submit), map beside the hero on desktop (560×360, 480 wide at 1280), categories per `specs/home-categories`, five toy rows, How it works. Footer, bottom nav and header are unchanged.
 2. Section titles 24/32 on desktop and 20/28 on mobile, w800; sections 64 px apart on desktop, 40 px on mobile; gutters via `--page-gutter` (ADR-063). Supersedes `home-categories` "Open" item 2 for Home.
 3. Toy rows: desktop shows 4 cards + 54 px peek with overlay prev/next arrows; mobile shows 232 px cards with a 12 px gap and scroll-snap, no arrows.
-4. Home-only toy card (ADR-064): image 0.86 (mobile) / 0.83 (desktop) of the width, age pill, "City, District", rating or "no reviews yet" (never a star without reviews), price + unit, condition chip, "View" pill on desktop only. The whole card is the link.
+4. Toy card = the shared `app-listing-card` (ADR-064 as amended 2026-11-17, Trello #271; the Home-only `home-toy-card` is retired): image 0.86 (mobile) / 0.83 (desktop) of the width, age pill, "City, District", rating or "no reviews yet" (never a star without reviews), price + unit, condition chip, "View" pill on desktop only. The whole card is the link.
 5. Map on touch: locked state with a light scrim, a "tap to move the map" hint and inactive zoom until tapped (within ADR-015).
 6. The "Every toy is reviewed" trust strip is removed (as drawn).
 7. Home has no FAQ section (Tigran, 2026-11-16, card #267, `specs/faq-page`); the design's FAQ block is not built. `/faq` is reached from the footer.
