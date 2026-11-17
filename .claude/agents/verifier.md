@@ -34,7 +34,8 @@ Then Read each PNG and inspect visually for: horizontal overflow/scrollbar, over
 
 1. Entire test suites: `dotnet test rental-api/RentalPlatform.sln` + `cd Rental-Ui && npm test`.
 2. Playwright journeys: `cd Rental-Ui && npm run e2e` (backend is network-stubbed; no live API needed).
-3. Note for the orchestrator: `/security-review` and a11y check (UI diffs) are run at the session level, not by you.
+3. Real-stack journeys (QA-owned) for the affected areas: start the docker stack (`docker compose -f rental-api/docker-compose.yml up --build -d`), then `cd Rental-Ui && npm run e2e:real` (all of it, or the `e2e/real/` specs for the touched flows). If docker is unavailable, list it under "not verified" — never skip silently.
+4. Note for the orchestrator: `/security-review` and a11y check (UI diffs) are run at the session level, not by you.
 
 ## Report format (always)
 

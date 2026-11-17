@@ -90,6 +90,7 @@ Date: 2026-07-19 | Status: accepted
 **Rejected:** (a) leave everything on Opus — the workflow in `CLAUDE.md` §2 mandates subagents for all code, so ~100% of consumption flows through them; the model choice there *is* the cost model. (b) all-Sonnet including `platform-engineer` — saves little (it was ~2–3%) and spends the saving in exactly the place where a mistake is most expensive. (c) attack session length/context instead of models — real but secondary and behavioural, not configurable: the same panel showed 57% of weekly usage at >150k context and 56% from 8h+ sessions, addressed by `/clear` between unrelated tasks rather than by any file in this repo.
 **Note on the figures:** the usage panel states they are approximate, cover local sessions on this machine only, and are independent characteristics rather than a partition — treat them as direction, not accounting.
 **Amended 2026-10-07 (ADR-026, approved by Tigran):** the new read-only `reviewer` agent → `opus`. It runs rarely (contract/schema/multi-repo routes and security questions, not every change) and its job is authorization and ADR-conformance reasoning, where a miss ships to production. Every other assignment above is unchanged.
+**Amended 2026-11-17 (Tigran) — `platform-engineer` → `sonnet`.** The agent file was switched to `sonnet` on 2026-10-29 (outer repo `7a3f8f4`) without amending this ADR; the knowledge-base audit of 2026-11-17 found the drift (M-094) and Tigran kept `sonnet` rather than reverting. The roster is now: every specialist on `sonnet`, except `reviewer` (`opus`) and `ux-designer` audit runs (`opus`, ADR-026 amendment 2026-11-08). Opus for any other agent remains a per-spawn override.
 
 ## ADR-007: Maps run on Leaflet + raster OpenStreetMap tiles, behind one `app-map` component
 Date: 2026-07-21 | Status: accepted (**for Phase 1; the trilingual-label requirement is knowingly unmet — see below**)
@@ -1335,6 +1336,7 @@ Date: 2026-10-18 | Area: frontend (all features, `src/app/api/`), i18n, security
 
 ## ADR-046: Rental state model v1.1 — one `BookingStatus` value per spec state, T2 is one value plus a reason, every transition is a compare-and-set with an appended `BookingEvent`, and the server computes whose turn it is
 Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — the four forks below, then the full text explicitly, RL-02) | Area: backend (domain, persistence, bookings API, chat, notifications, availability) + frontend (bookings, chat card) | Spec: Rental Spec v1.1 §3–§5 (`knowledge/specs/rental/`)
+Implemented: no (checked 2026-11-17 — `BookingStatus.cs` still has the seven pre-v1.1 values; the code, not this ADR, describes the running system)
 
 **Context:** the current machine has seven values: Pending 0, Approved 1, Rejected 2, Cancelled 3, Expired 4, Completed 5 and Active 7. Value 6 (`ReturnMarked`) is retired, and rows that still carry it were never migrated (C-15). The machine cannot express what spec v1.1 needs: a handover claimed but not confirmed (S3/S4), a return claimed but not confirmed (S6/S7), the 24 h closing window (S8), a dispute (S9), "closed by support" (T3), and the seven reasons a rental did not happen (T2). Transitions live in `BookingStatusTransitions`, and state sets are re-listed by hand in every consumer (`ListingsQueryService` ×2, `BookingsStore` ×2, `HomePointStore`, the admin, profile and chat counters). This is the class of mistake behind the stale availability sets.
 
@@ -1530,6 +1532,7 @@ Date: 2026-10-19 | Status: accepted (decided by Tigran, 2026-10-19 — forks and
 
 ## ADR-048: Yerevan time is a fixed UTC+4; time comes from `TimeProvider`; timers and reminders run on Hangfire; non-urgent notifications wait in an outbox during quiet hours
 Date: 2026-10-19 | Status: accepted — every choice below picked by Tigran, 2026-10-19 (RL-06) | Area: backend (bookings, notifications, background jobs) + frontend (date logic) | Spec: v1.1 §2, §5, §13; O-2, Q-6
+Implemented: no (checked 2026-11-17 — no Hangfire package; background work runs as `IHostedService`s registered in `ServiceCollectionExtensions.cs`. Do not migrate them to Hangfire outside the v1.1 work)
 
 **Decision:**
 1. **Calendar.** Every calendar rule (today, end of day, 09:00/18:00, quiet hours 22:00–09:00) uses Asia/Yerevan as a **fixed UTC+4**, with one helper per side (`YerevanCalendar` in Domain, a twin util in the UI). Storage stays UTC.
@@ -1549,6 +1552,7 @@ Date: 2026-10-19 | Status: accepted — every choice below picked by Tigran, 202
 
 ## ADR-049: A support case is its own aggregate tied to one rental; support reads and writes the rental chat only while a case on it is open
 Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-08) | Area: backend (support, chat authorization, admin, blocking) + frontend (admin queue, case view) | Spec: v1.1 §9 (O-8, O-12, Q-7, Q-10, Q-11, Q-20), TR-12/21/22/24/25/26/33/34; audit A-9, A-10, C-08, C-09
+Implemented: no (checked 2026-11-17 — no `SupportCase` / `SupportChatAccess` in rental-api)
 
 **Decision:**
 1. **A new `SupportCase` aggregate, separate from `Report`.** It references one booking and holds:
@@ -1569,6 +1573,7 @@ Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-08) | Area: backend 
 
 ## ADR-050: Reviews open only with both parties' consent — two consent marks on the booking, written only by the parties' own actions
 Date: 2026-10-19 | Status: accepted (Tigran, 2026-10-19, RL-09) | Area: backend (reviews, bookings) + frontend (review prompts) | Spec: v1.1 §10; B-1, Q-16, Q-17, P-1, P-3, P-4, M-I; audit A-15, C-01
+Implemented: no (checked 2026-11-17 — no `OwnerReviewConsentAt` / `RenterReviewConsentAt` in rental-api)
 
 **Decision:**
 1. **Two marks on `Booking`: `OwnerReviewConsentAt` and `RenterReviewConsentAt`.**

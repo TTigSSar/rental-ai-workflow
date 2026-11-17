@@ -735,3 +735,10 @@ Date: 2026-11-17 | Area: Rental-Ui AI search (Trello #271, caught by frontend-de
 **Cause:** `normalizeAiSearchResponse` in `listings-api.service.ts` rebuilds `appliedFilters` field by field. contract-guardian syncs types and models only, so the new optional fields compiled while the normaliser never copied them. The specs built `AiSearchFilters` directly and never went through the normaliser.
 **Fix:** Rental-Ui 3690ce4 copies the lists in the normaliser, makes the three fields required-nullable (so a missing copy is a compile error) and adds a normaliser spec.
 **Rule:** when a response DTO gains a field, grep for hand-written normalisers/mappers of that DTO (`normalize*`, `map*`, `from*`) as part of the contract sync, and prefer required-nullable fields over optional ones so an incomplete mapper fails to compile. See M-071 for the template half of the same gap.
+
+## M-094: An agent's model was switched in its frontmatter without amending the ADR that fixes the roster
+Date: 2026-11-17 | Area: agent workflow (found by the knowledge-base audit)
+**Symptom:** `platform-engineer.md` said `model: sonnet` while ADR-006 still said "Opus only for platform-engineer"; for three weeks the two sources disagreed and neither flagged it. The same agent file also claimed "the server tracks `dev`", while the server had tracked `main` since 2026-07-14 (checked read-only on the server 2026-11-17).
+**Cause:** the change landed as a one-line `chore(agents)` commit (`7a3f8f4`, 2026-10-29). Rule 0 treats agent models as a recorded decision, but a frontmatter edit doesn't look like one, so no ADR amendment was written.
+**Fix:** ADR-006 amended 2026-11-17 (Tigran kept `sonnet`); the branch line corrected.
+**Rule:** any edit to an agent's `model:` or `tools:` frontmatter, or to a production fact in an agent file, is a Rule 0 change: amend the ADR (006/026) in the same commit, after Tigran's OK. A frontmatter diff in `.claude/agents/` is a review trigger.
