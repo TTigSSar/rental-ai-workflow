@@ -15,7 +15,7 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
 9. AI-set controls get the same `#C24600` border that a user-set filter gets. On mobile, the filter button shows the count badge.
 10. Stage 2 approved (Tigran, 2026-10-27):
     - **Loading:** previous cards stay in place, dimmed and inert, under one status line with a thin indeterminate bar. A first search shows the existing skeleton.
-    - **Re-rank:** "Updating the order" replaces the count line.
+    - **Re-rank:** "Updating the order" replaces the count line. *Amended 2026-11-17 (Tigran, ADR-054):* a filter change no longer re-ranks automatically; the catalogue reloads and a "Re-rank with AI" button offers the paid call.
     - **Purpose widening:** one quiet note, with no undo.
     - **No results:** option **A**, stacked full-width buttons. The primary is "Widen the area", which drops the district filter and searches all of Yerevan, or "Edit description" when no district is set. Secondary actions: "Increase the budget" (focuses the price "To" field, no suggested amount), category pills, and the bell. There is no "Clear filters".
 11. The privacy note reads "Your request is processed by AI" / "Ваш запрос обрабатывает искусственный интеллект" / "Ձեր հարցումը մշակում է արհեստական բանականությունը" (Tigran, 2026-10-30; supersedes "Your description is processed by an AI service.").
