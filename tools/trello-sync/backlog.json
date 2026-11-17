@@ -472,6 +472,16 @@
     "prompt": "Implement Web Push for new chat messages in DoRent (rental-api + Rental-Ui). Start in plan mode. Rule 0: each item below is a structural decision; bring it to Tigran with options and a recommendation, then record the ADRs before any code: (1) push library on .NET (e.g. WebPush / Lib.Net.Http.WebPush) and VAPID key handling in production (platform-engineer owns secrets/compose); (2) service worker approach in Angular (@angular/service-worker vs a minimal custom SW) and a PWA manifest so iOS home-screen installs can receive push; (3) data model: a PushSubscription entity per user/device (endpoint, p256dh, auth, created/last-used), removal on 404/410 from the push service, cleanup on logout/account deletion (ADR-056); (4) API contract: subscribe/unsubscribe endpoints (contract-guardian syncs api-contract.ts); (5) when to push vs the email channel from #17 (e.g. push immediately, email only if still unread after the delay) and quiet hours (ADR-048); (6) permission-prompt UX — ask after a meaningful action (first message sent), never on page load; ux-designer writes the design prompt first. Payload holds no message text beyond a short localized preview decided by Tigran (privacy). Route per CLAUDE.md Delegation route 8 (schema + contract + both repos). Verify on a real Android Chrome and desktop browser; dorent.am is behind Cloudflare Access (ADR-009), so check the SW scope and push click-through work there."
   },
   {
+    "name": "Web Push for rental events (not only chat)",
+    "priority": "Low",
+    "labels": [
+      "backend",
+      "frontend"
+    ],
+    "desc": "Follow-up of #252 (ADR-067), agreed with Tigran 2026-11-17. #252 pushes only chat messages (human text, image, meeting point, moderator notes); chat system lines and booking/rental notifications (request, approved, declined, handover, return, reminders) do not push.\n\nThe #252 infrastructure is reusable: PushSubscriptions table, /api/push endpoints, IPushSender, the bounded-queue ChatPushDispatcher, public/sw.js.\n\nDepends on the product direction in the card \"Notifications: retire the notification feed — all notifications live in the chat\": if rental events become chat system lines, this card means \"push selected system lines\" (ADR-067 §9 change); if the feed stays, it means \"push selected NotificationKinds\". Quiet hours: ADR-048 §4 outbox applies to non-urgent rental notifications — push for those must respect it.",
+    "prompt": "Extend DoRent Web Push (ADR-067) to rental events. Start in plan mode. Read ADR-025, ADR-048, ADR-059, ADR-067 and the status of the 'retire the notification feed' card. Rule 0: which events push (only urgent ones from spec §5? approvals/declines? reminders?), whether they push from NotificationKind or from chat system lines (ADR-067 §9 says system lines don't push today), and how quiet hours / the outbox apply — bring options with a recommendation to Tigran, record the ADR amendment before code. Reuse PushSubscriptions, IPushSender, the push queue and public/sw.js; payload stays localized server-side with no addresses or phones; click opens the booking or chat. Route 7 or 8 per CLAUDE.md Delegation; verify on Android Chrome + desktop."
+  },
+  {
     "name": "Notifications: retire the notification feed — all notifications live in the chat",
     "priority": "Medium",
     "labels": [
