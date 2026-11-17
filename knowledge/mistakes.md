@@ -742,3 +742,10 @@ Date: 2026-11-17 | Area: agent workflow (found by the knowledge-base audit)
 **Cause:** the change landed as a one-line `chore(agents)` commit (`7a3f8f4`, 2026-10-29). Rule 0 treats agent models as a recorded decision, but a frontmatter edit doesn't look like one, so no ADR amendment was written.
 **Fix:** ADR-006 amended 2026-11-17 (Tigran kept `sonnet`); the branch line corrected.
 **Rule:** any edit to an agent's `model:` or `tools:` frontmatter, or to a production fact in an agent file, is a Rule 0 change: amend the ADR (006/026) in the same commit, after Tigran's OK. A frontmatter diff in `.claude/agents/` is a review trigger.
+
+## M-095: Removing a scratch worktree that held a `node_modules` junction wiped part of the real `Rental-Ui/node_modules`
+Date: 2026-11-17 | Area: verifier tooling on Windows (cost: one blocked writer run, the user's `ng serve` running on a broken install)
+**Symptom:** after a verifier run, `Rental-Ui/node_modules` lost `.bin` and `@angular/build`; `ng serve` then picked up a foreign `@angular/build` for Angular 22 and refused to start.
+**Cause:** for BEFORE screenshots the verifier made a `git worktree` in the scratchpad and pointed its `node_modules` at the main one with a junction (`ln -s` failed on path length). Removing the worktree / junction recursively followed the link and deleted real package folders (timestamps 16:15).
+**Fix:** `npm install` in Rental-Ui restored the missing packages from the unchanged lockfile.
+**Rule:** never link the main `node_modules` into a scratch worktree. Run `npm ci` inside the worktree, or serve the BEFORE build from a copy. If a junction already exists, remove only the link itself (`cmd /c rmdir <link>`), never `rm -rf`, and before deleting the worktree. Put this in every verifier hand-off that asks for BEFORE screenshots.

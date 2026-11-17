@@ -6,7 +6,7 @@ Design: Claude Design project `df24299b-1299-4804-8a0a-5484005594c3`, files `AI 
 
 1. Stage 1 rev 2 direction approved (Tigran, 2026-10-26). AI search is an **"AI" switch inside the existing catalogue search field**. There is no separate page, bar or mode screen.
 2. The AI writes into the **existing filters and chips**. There are no separate AI chips. The real catalogue components (category selector, mobile sheet "Cancel / Apply") are kept, not the mock's versions.
-3. Refinement means editing the same description. On mobile the field grows while typing and collapses to one line after a search.
+3. Refinement means editing the same description. On mobile the field grows while typing and collapses to one line after a search. *Amended 2026-11-17 (Tigran):* it stays one line (switch + submit inline) until the text wraps, and only then grows with the controls in a bottom row.
 4. ~~The explanation line states the intent only and never shows filter values.~~ SUPERSEDED (Tigran, 2026-10-29): there is **no explanation line**. The chips already show what the AI understood. The API's `intent` field stays but is not displayed.
 5. The sort "Most relevant first" is the default in AI mode. Page 1 holds the 20 ranked cards, and page 2 onward opens with the divider "More listings matching your criteria".
 6. A widened district adds **one chip per district** (Kentron, Arabkir, Avan, …), each with its own ×, and those districts are checked in the district filter. This supersedes the one grouped chip (Tigran, 2026-10-27).
