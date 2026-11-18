@@ -473,7 +473,7 @@
   },
   {
     "name": "Web Push for rental events (not only chat)",
-    "priority": "Low",
+    "priority": "High",
     "labels": [
       "backend",
       "frontend"
