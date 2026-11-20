@@ -1244,6 +1244,8 @@ Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: API contract, li
 
 **Related:** ADR-018 (compensation required), ADR-016 (compliance checklist reads safety/hygiene notes), ADR-024 (home-point fields removed from the update).
 
+**Amended 2026-11-20 (Tigran) — `condition` is required.** `condition` leaves the clearable-optionals set. Create: missing/blank → 400 `condition` "Condition is required.". PATCH: absent = unchanged, explicit `null` or blank → 400 (the `compensationAmount` pattern). The wizard requires a condition choice on create and edit. Value stays a free string (ADR-042 canonical set enforced in the UI only); read DTOs keep `string?`, so listings created before this change without a condition stay valid and render no condition. **Rejected:** UI-only required — leaves the API accepting listings the product says cannot exist.
+
 ## ADR-041: Home section titles are localized in the UI by the section `key`; the server `title` is only a fallback
 Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: i18n, home page, display rules
 
