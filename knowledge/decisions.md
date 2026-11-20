@@ -1244,6 +1244,8 @@ Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: API contract, li
 
 **Related:** ADR-018 (compensation required), ADR-016 (compliance checklist reads safety/hygiene notes), ADR-024 (home-point fields removed from the update).
 
+**Amended 2026-11-20 (Tigran) — `condition` is required.** `condition` leaves the clearable-optionals set. Create: missing/blank → 400 `condition` "Condition is required.". PATCH: absent = unchanged, explicit `null` or blank → 400 (the `compensationAmount` pattern). The wizard requires a condition choice on create and edit. Value stays a free string (ADR-042 canonical set enforced in the UI only); read DTOs keep `string?`, so listings created before this change without a condition stay valid and render no condition. **Rejected:** UI-only required — leaves the API accepting listings the product says cannot exist.
+
 ## ADR-041: Home section titles are localized in the UI by the section `key`; the server `title` is only a fallback
 Date: 2026-10-17 | Status: accepted (decided by Tigran) | Area: i18n, home page, display rules
 
@@ -1889,3 +1891,14 @@ Date: 2026-11-17 | Status: accepted | Decided by: Tigran (points 1–6 by questi
 
 **Rejected:** web-push-csharp + `@angular/service-worker` (ngsw caching we don't need, harder releases); a message preview in the payload (lock screen shows addresses/phones); quiet-hours suppression for push; skipping the email when push exists; a server "push enabled" flag; a polling dispatcher (needs another column and up to 30 s delay); always unsubscribing on logout including page loads (endpoint churn eats the cap).
 **Related:** ADR-025, ADR-048, ADR-053, ADR-056, ADR-059, ADR-020 (site is public — the card's ADR-009 note no longer applies).
+
+## ADR-068: Toy age range is displayed in years, months only below one year
+Date: 2026-11-20 | Status: accepted | Decided by: Tigran (question round) | Area: display/formatting rule, UI | Trello: "Toy age range: show years instead of months on listing cards"
+**Decision:**
+1. Storage and API stay in months (`ageFromMonths` / `ageToMonths`). This is a display rule only, no contract or schema change.
+2. A bound below 12 months is shown in months; from 12 months it is shown in years, a half year as a decimal (18 → "1.5", locale decimal separator). Other non-whole values round to the nearest half year. Examples (ru): "6 мес. – 1 год", "6 мес. – 3 года", "1–3 года", "1,5–5 лет", "от 2 лет", "до 10 лет".
+3. One shared formatter for every display: listing card, listing details, my listings, owner listing page, admin review card. Correct plural forms in hy/ru/en.
+4. Input stays the wizard's whole-year slider (create and edit already share it). The unused "(months)" field labels are removed.
+**Rejected:** always years with fractions ("0,5–1 год" reads oddly for babies); always whole years (6 and 18 months get distorted); keeping months (hard for parents to read past 24).
+**Related:** ADR-025 (localization).
+**Amended 2026-11-20 (Tigran):** (a) a lower bound of 0 is dropped: 0–12 renders as the to-only form ("до 1 года"), not "0 мес. – 1 год". (b) The decimal separator is always a dot in every locale ("1.5–5 лет", "1.5–5 տարի"), overriding "locale decimal separator" in point 2. (c) Armenian open-ended forms use the age adjective: from-only "2 տարեկանից", to-only "մինչև 10 տարեկան" (months: "6 ամսականից", "մինչև 9 ամսական").
