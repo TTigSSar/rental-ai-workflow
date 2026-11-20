@@ -1901,3 +1901,4 @@ Date: 2026-11-20 | Status: accepted | Decided by: Tigran (question round) | Area
 4. Input stays the wizard's whole-year slider (create and edit already share it). The unused "(months)" field labels are removed.
 **Rejected:** always years with fractions ("0,5–1 год" reads oddly for babies); always whole years (6 and 18 months get distorted); keeping months (hard for parents to read past 24).
 **Related:** ADR-025 (localization).
+**Amended 2026-11-20 (Tigran):** (a) a lower bound of 0 is dropped: 0–12 renders as the to-only form ("до 1 года"), not "0 мес. – 1 год". (b) The decimal separator is always a dot in every locale ("1.5–5 лет", "1.5–5 տարի"), overriding "locale decimal separator" in point 2. (c) Armenian open-ended forms use the age adjective: from-only "2 տարեկանից", to-only "մինչև 10 տարեկան" (months: "6 ամսականից", "մինչև 9 ամսական").
