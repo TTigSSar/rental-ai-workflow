@@ -73,7 +73,9 @@ function onMcpWriteCard(input) {
         `The Trello card "${input.tool_input.name || ''}" was just created WITHOUT a priority — the MCP create ` +
         'action cannot set labels. Attach exactly one priority label now, before anything else: ' +
         `${SCALE} (trelloReadBoard for the label ARIs, then trelloWriteCard action "attach_label"). ` +
-        'Every card on the board must carry a priority. Also attach the black "AI" label.',
+        'Every card on the board must carry a priority. Also attach the black "AI" label. ' +
+        'The To Do list is sorted by priority: once the label is on, run ' +
+        '`node tools/trello-sync/sync.js --sort` so the card moves into its priority slot.',
     },
   });
 }

@@ -31,4 +31,26 @@ function validateBacklog(items) {
 /** Canonical spelling of a priority, so "high" in backlog.json still matches the board's "High" label. */
 const canonical = (name) => PRIORITIES.find((p) => p.toLowerCase() === String(name).toLowerCase());
 
-module.exports = { PRIORITIES, LEGACY_PRIORITY_LABELS, isPriority, validateBacklog, canonical };
+/** Rank of a card by its priority label (0 = Blocker); a card without one sorts after Lowest. */
+function rankOf(card) {
+  const ranks = (card.labels || [])
+    .map((l) => PRIORITIES.findIndex((p) => p.toLowerCase() === String(l.name || '').toLowerCase()))
+    .filter((i) => i >= 0);
+  return ranks.length ? Math.min(...ranks) : PRIORITIES.length;
+}
+
+/**
+ * Trello `pos` that puts a card of `priority` into its slot in a list sorted by priority:
+ * after the last card of the same or higher priority, before the first lower one.
+ * `cards` are the list's cards with `pos` and `labels`.
+ */
+function slotFor(cards, priority) {
+  const rank = PRIORITIES.findIndex((p) => p.toLowerCase() === String(priority).toLowerCase());
+  const sorted = [...cards].sort((a, b) => a.pos - b.pos);
+  const next = sorted.findIndex((c) => rankOf(c) > rank);
+  if (next === -1) return sorted.length ? sorted[sorted.length - 1].pos + 16384 : 16384;
+  const before = next > 0 ? sorted[next - 1].pos : 0;
+  return (before + sorted[next].pos) / 2;
+}
+
+module.exports = { PRIORITIES, LEGACY_PRIORITY_LABELS, isPriority, validateBacklog, canonical, rankOf, slotFor };
