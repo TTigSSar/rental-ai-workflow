@@ -749,3 +749,11 @@ Date: 2026-11-17 | Area: verifier tooling on Windows (cost: one blocked writer r
 **Cause:** for BEFORE screenshots the verifier made a `git worktree` in the scratchpad and pointed its `node_modules` at the main one with a junction (`ln -s` failed on path length). Removing the worktree / junction recursively followed the link and deleted real package folders (timestamps 16:15).
 **Fix:** `npm install` in Rental-Ui restored the missing packages from the unchanged lockfile.
 **Rule:** never link the main `node_modules` into a scratch worktree. Run `npm ci` inside the worktree, or serve the BEFORE build from a copy. If a junction already exists, remove only the link itself (`cmd /c rmdir <link>`), never `rm -rf`, and before deleting the worktree. Put this in every verifier hand-off that asks for BEFORE screenshots.
+**Recurred 2026-11-20:** a frontend-dev run made a throwaway worktree with a `node_modules` junction to bisect a test failure. The same wipe happened again, and `npm ci` was needed twice that day. The rule applies to every agent, not only the verifier.
+
+## M-096: "Vitest failed to find the runner" was blamed on the environment for a whole day; it only fails from Git Bash
+Date: 2026-11-20 | Area: UI unit tests on Windows (cost: two batches of UI changes with unverified specs, a stray `node_modules` renamed for the wrong reason)
+**Symptom:** `npx ng test --watch=false` in Rental-Ui failed all 208 files with "Vitest failed to find the runner" at `angular:test-bed-init:12:5`, with 0 tests run. Agents reported "environment issue, moving on". Two runs passed, and nobody could explain why.
+**Cause:** the Bash tool runs Git Bash. From there the run fails every time, while the identical command from PowerShell passes (208 files, 2861 tests). The likely cause is that the cwd's lowercase drive letter (`c:\`) makes Node load vitest twice. This is not proven. A stray `C:\Users\tigra\Projects\node_modules` (Angular 22) was found and renamed on the way, but it was not the cause.
+**Fix:** none in the repo. Run the tests from PowerShell.
+**Rule:** run Rental-Ui unit tests (`ng test`, `npm test`) with the PowerShell tool. Every hand-off to frontend-dev, verifier or qa-engineer that runs UI tests says so. A suite-wide "failed to find the runner" from Bash is not evidence about the code.
