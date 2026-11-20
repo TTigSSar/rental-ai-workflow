@@ -1891,3 +1891,13 @@ Date: 2026-11-17 | Status: accepted | Decided by: Tigran (points 1–6 by questi
 
 **Rejected:** web-push-csharp + `@angular/service-worker` (ngsw caching we don't need, harder releases); a message preview in the payload (lock screen shows addresses/phones); quiet-hours suppression for push; skipping the email when push exists; a server "push enabled" flag; a polling dispatcher (needs another column and up to 30 s delay); always unsubscribing on logout including page loads (endpoint churn eats the cap).
 **Related:** ADR-025, ADR-048, ADR-053, ADR-056, ADR-059, ADR-020 (site is public — the card's ADR-009 note no longer applies).
+
+## ADR-068: Toy age range is displayed in years, months only below one year
+Date: 2026-11-20 | Status: accepted | Decided by: Tigran (question round) | Area: display/formatting rule, UI | Trello: "Toy age range: show years instead of months on listing cards"
+**Decision:**
+1. Storage and API stay in months (`ageFromMonths` / `ageToMonths`). This is a display rule only, no contract or schema change.
+2. A bound below 12 months is shown in months; from 12 months it is shown in years, a half year as a decimal (18 → "1.5", locale decimal separator). Other non-whole values round to the nearest half year. Examples (ru): "6–12 мес.", "6 мес. – 3 года", "1–3 года", "1,5–5 лет", "от 2 лет", "до 10 лет".
+3. One shared formatter for every display: listing card, listing details, my listings, owner listing page, admin review card. Correct plural forms in hy/ru/en.
+4. Input stays the wizard's whole-year slider (create and edit already share it). The unused "(months)" field labels are removed.
+**Rejected:** always years with fractions ("0,5–1 год" reads oddly for babies); always whole years (6 and 18 months get distorted); keeping months (hard for parents to read past 24).
+**Related:** ADR-025 (localization).
