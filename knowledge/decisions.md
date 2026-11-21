@@ -1903,3 +1903,10 @@ Date: 2026-11-20 | Status: accepted | Decided by: Tigran (question round) | Area
 **Rejected:** always years with fractions ("0,5–1 год" reads oddly for babies); always whole years (6 and 18 months get distorted); keeping months (hard for parents to read past 24).
 **Related:** ADR-025 (localization).
 **Amended 2026-11-20 (Tigran):** (a) a lower bound of 0 is dropped: 0–12 renders as the to-only form ("до 1 года"), not "0 мес. – 1 год". (b) The decimal separator is always a dot in every locale ("1.5–5 лет", "1.5–5 տարի"), overriding "locale decimal separator" in point 2. (c) Armenian open-ended forms use the age adjective: from-only "2 տարեկանից", to-only "մինչև 10 տարեկան" (months: "6 ամսականից", "մինչև 9 ամսական").
+
+## ADR-069: The home-point status card drops its low-accuracy warning — the map's accuracy circle is the only hedge
+Date: 2026-11-21 | Status: accepted | Decided by: Tigran | Area: display rule, UI (home point)
+**Decision:** `app-home-point-status` no longer shows the yellow `warn` card ("Ձեր գտնվելու վայրը մոտավոր է…", accuracy worse than 300 m) on any surface (sign-up, profile picker, listing wizard gate). It keeps `error` (outside Yerevan / server refusal) and `info` (geolocation denied). The map still draws the accuracy circle, so a vague fix still looks vague; only the text warning is gone.
+**Why:** the card cluttered the sign-up dialog; the circle already shows the uncertainty.
+**Rejected:** keeping the warning (too noisy for a rare case); hiding the circle too (would break M-027: a guess must not render as a bare confident dot).
+**Related:** M-027 (narrowed, not dropped — the error bar still reaches the UI as the circle), ADR-024 (home point).
