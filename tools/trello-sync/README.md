@@ -60,6 +60,15 @@ board is never reverted.
 `POST /1/cards` shell calls, and after a Trello-MCP `create` (which can't set labels) tells the agent
 to attach a priority label right away.
 
+## To Do is sorted by priority
+
+The To Do list reads top-down from Blocker to Lowest (Tigran, 2026-11-20). `sync.js` inserts each
+new card into its priority slot (after the last card of the same or higher priority), and
+`--move … --to "To Do"` does the same for a card coming back. Cards added through the Trello MCP or
+by hand, or re-prioritised on the board, are put in order with `node sync.js --sort` (stable within
+a priority; `--dry-run` to preview). The priority-guard hook reminds the agent to run it after an
+MCP create.
+
 ## Keeping it honest
 
 `backlog.json` is written from `knowledge/mistakes.md` (items still marked OPEN), the

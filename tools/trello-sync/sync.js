@@ -14,7 +14,11 @@
  *   node sync.js                     create the missing cards
  *   node sync.js --move "<name>" --to "<list>"
  *                                    move one card to another list on the same board
- *                                    (<name> may be a unique substring of the card title)
+ *                                    (<name> may be a unique substring of the card title);
+ *                                    moving into the To Do list lands in the priority slot
+ *   node sync.js --sort [--dry-run]  re-sort the To Do list by priority (Blocker first)
+ *
+ * The To Do list is kept sorted by priority: new cards are inserted into their slot.
  *
  * Credentials come from tools/trello-sync/.env (gitignored) or the environment:
  *   TRELLO_KEY, TRELLO_TOKEN, TRELLO_LIST_ID
@@ -22,7 +26,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { isPriority, validateBacklog, canonical } = require('./priority');
+const { PRIORITIES, isPriority, validateBacklog, canonical, rankOf, slotFor } = require('./priority');
 
 const API = 'https://api.trello.com/1';
 const HERE = __dirname;
@@ -146,7 +150,7 @@ async function sync({ dryRun }) {
 
   const items = readBacklog();
   const list = await trello('GET', `/lists/${listId}`, { fields: 'name,idBoard' });
-  const existing = await trello('GET', `/lists/${listId}/cards`, { fields: 'name,labels' });
+  const existing = await trello('GET', `/lists/${listId}/cards`, { fields: 'name,labels,pos' });
   const byName = new Map(existing.map((c) => [c.name.trim(), c]));
 
   const missing = items.filter((it) => !byName.has(it.name.trim()));
@@ -191,14 +195,17 @@ async function sync({ dryRun }) {
       console.log(`  would create: ${it.name}`);
       continue;
     }
-    await trello('POST', '/cards', {
+    // The list is kept sorted by priority: the new card goes into its priority's slot,
+    // and joins `existing` so the next new card in this run is placed relative to it.
+    const created = await trello('POST', '/cards', {
       idList: listId,
       name: it.name,
       desc: bodyOf(it),
       idLabels: ids.join(','),
-      pos: 'bottom',
+      pos: slotFor(existing, it.priority),
     });
-    console.log(`  ✔ ${it.name}`);
+    existing.push(created);
+    console.log(`  ✔ [${canonical(it.priority)}] ${it.name}`);
   }
 
   if (dryRun) {
@@ -267,8 +274,39 @@ async function move(needle, targetList) {
     return;
   }
   const from = lists.find((l) => l.id === card.idList);
-  await trello('PUT', `/cards/${card.id}`, { idList: target.id });
+  const params = { idList: target.id };
+  if (target.id === listId) {
+    // Back into the priority-sorted list: land in the card's priority slot, not at the top.
+    const full = await trello('GET', `/cards/${card.id}`, { fields: 'labels' });
+    const rank = rankOf(full);
+    const cardsThere = await trello('GET', `/lists/${listId}/cards`, { fields: 'labels,pos' });
+    params.pos = rank < PRIORITIES.length ? slotFor(cardsThere, PRIORITIES[rank]) : 'bottom';
+  }
+  await trello('PUT', `/cards/${card.id}`, params);
   console.log(`\n→ "${card.name}"\n  ${from ? from.name : '?'} → ${target.name}\n`);
+}
+
+/**
+ * Re-sort the whole list by priority (stable within a priority). Repairs the order after
+ * cards were added or re-prioritised by hand on the board, or created through the MCP.
+ */
+async function sortList({ dryRun }) {
+  const listId = process.env.TRELLO_LIST_ID;
+  if (!listId) die('Missing TRELLO_LIST_ID.');
+  const cards = await trello('GET', `/lists/${listId}/cards`, { fields: 'name,labels,pos' });
+  const sorted = cards
+    .map((c, i) => ({ c, i, r: rankOf(c) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i);
+  let moved = 0;
+  for (const [n, { c, r }] of sorted.entries()) {
+    const pos = (n + 1) * 16384;
+    const label = PRIORITIES[r] || 'no priority';
+    if (n === cards.indexOf(c) && c.pos === pos) continue;
+    if (dryRun) console.log(`  ${n + 1}. [${label}] ${c.name}`);
+    else await trello('PUT', `/cards/${c.id}`, { pos });
+    moved++;
+  }
+  console.log(dryRun ? `\n(dry run — ${moved} card(s) would be repositioned)\n` : `\nSorted: ${moved} card(s) repositioned.\n`);
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
@@ -278,6 +316,7 @@ async function move(needle, targetList) {
   const args = process.argv.slice(2);
 
   if (args.includes('--boards')) return printBoards();
+  if (args.includes('--sort')) return sortList({ dryRun: args.includes('--dry-run') });
 
   const r = args.indexOf('--refresh');
   if (r !== -1) {
