@@ -20,3 +20,7 @@ Thumbs.db
 
 # Agent Monitor traces — metadata-only, machine-local (ADR-026 §10)
 tools/agent-monitor/traces/
+
+# Six Labors (ImageSharp) licence file - never commit (ADR-070)
+sixlabors.lic
+*.lic
