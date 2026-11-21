@@ -14,6 +14,9 @@ Export: [design/](design/) — copied from the claude.ai artifact "DoRent Profil
 8. **Initials** in `ui-color-primary-strong` on `ui-color-primary-wash`, bold, 38% of the circle.
 9. **Copy** en/ru/hy exactly as `design/README.md`; the Armenian iPhone hint keeps the English settings path.
 
+10. **Accepted implementation deviations (Tigran, 2026-11-21, after the before/after review):** the action-sheet title uses the settings-sheet shell (left-aligned, 20px, with an X) instead of the centred caption; the header avatar has no white ring; the notification-card avatar fills its 46px box; profile initials use the soft tone (primary-strong on primary-wash).
+11. **Desktop hover without a photo (Tigran, 2026-11-21):** no grey scrim over initials — the initials hide and a `ui-color-primary-strong` camera shows on the `ui-color-primary-wash` ground. With a photo: scrim + white camera as designed. Before/after: https://claude.ai/artifact/4P1KMR5LfcAZ8mRAxjkAgv
+
 ## Open / not accepted
 - The design's "make the page's other controls inert while uploading" — not accepted (decision 5).
 - Entry option 1 (badge on desktop) — not chosen.
